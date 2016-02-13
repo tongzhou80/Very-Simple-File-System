@@ -57,8 +57,8 @@ private:
   /* cwd_table is contains pairs of file name and its fd */
   std::map<std::string, int> cwd_table;
   int block_offset[6];
-  int isize;
-  int dsize;
+  static int const isize = 256;
+  static int const dsize = 4*1024;
   int inum;
   int dnum;
   int fd_cnt;
@@ -72,13 +72,14 @@ private:
   int allocBit(int start, int len);
   int getInodeOffset(int id);
   int getDataOffset(int id);
-  int updateInode(int node_offset, int inner_offset, char* buffer, std::size_t num);
+  int updateInode(int i_id, Inode * newnode);
   int createFile();
   int loadDirTable();
   int incrementDirFileCnt();
   int addFileToDir(int dir, int fd, char* name);
   //int getAddress_0(int node_id);
   Inode * getInode(int id);
+  int writeData(int i_id, const void * source, int len);
   
   /* virtual disk I/O */
   void dwrite();

@@ -20,7 +20,7 @@ void p(T foo) {
 Inode::Inode() {
   this->type = 0; 
   this->size = 0;
-  this->block_left_size = dsize;
+  this->block_left_size = VSFileSystem::dsize;
   this->addr_0 = 0;
   
   this->mode = 664;
@@ -57,9 +57,9 @@ int VSFileSystem::writeData(int i_id, const void * source, int len) {
   int capacity = node->block_left_size;
   /* memcpy */
   if (len <= capacity) {
-    std::memcpy(data_block_start, source, len);
+    std::memcpy((void *)data_block_start, source, len);
     node->block_left_size = capacity - len;
-    updateInode
+    //updateInode
   }
   else {
     /* allocate new block */
@@ -84,12 +84,13 @@ std::size_t DirEntry::getSize() {
     + nlen;
 }
 
+// /* size of an inode and a data block */
+// int VSFileSystem::isize = 256;
+// int VSFileSystem::dsize = 4*1024;
+
 VSFileSystem::VSFileSystem() {
   disk_name = "vdisk";
   disk_size = 2*1024*1024;
-  /* size of an inode and a data block */
-  isize = 256;
-  dsize = 4*1024;
 
   /* start from 3, 0-2 reserve for std fd */
   fd_cnt = 2;
@@ -102,8 +103,8 @@ VSFileSystem::VSFileSystem() {
   mkfs();
   root = mkdir();
   cwd = root;
-  loadDirTable();
-  open();
+  //loadDirTable();
+  //open();
 }
 
 VSFileSystem::~VSFileSystem() {
@@ -304,15 +305,8 @@ int VSFileSystem::mkdir() {
   /* write new node into disk */
   Inode * node = new Inode();
   node->type = 1; // set inode type to dir
-  int node_offset = getInodeOffset(i_id);
   int data_offset = getDataOffset(d_id);
   node->addr_0 = data_offset;
-  p("add:");
-  p(node->addr_0);
-  p("node:");
-  p(node_offset);
-  disk.seekp(node_offset);
-  disk << *node;
   
   DirEntry * e1 = new DirEntry(i_id, 1, ".");
   DirEntry * e2 = new DirEntry(i_id, 2, "..");
@@ -325,9 +319,8 @@ int VSFileSystem::mkdir() {
 
   /* update size field in inode */
   int newsize = e1->getSize() + e2->getSize();
-  char* buffer = (char*)&newsize;
   node->size = newsize;
-  updateInode(i_id, node, sizeof(*node));
+  updateInode(i_id, node);
 
   delete node;
   delete e1;
@@ -335,15 +328,16 @@ int VSFileSystem::mkdir() {
   return i_id;
 }
 
-int VSFileSystem::updateInode1(int node_offset, int inner_offset, char* buffer, std::size_t num) {
-  disk.seekp(node_offset + inner_offset);
-  disk.write(buffer, num);
-  disk.flush();
-}
+// int VSFileSystem::updateInode1(int node_offset, int inner_offset, char* buffer, std::size_t num) {
+//   disk.seekp(node_offset + inner_offset);
+//   disk.write(buffer, num);
+//   disk.flush();
+// }
 
 int VSFileSystem::updateInode(int i_id, Inode * newnode) {
   int offset = getInodeOffset(i_id);
-  
+  cout << "sizeof\n";
+  cout << sizeof(newnode);
 }
 
 
