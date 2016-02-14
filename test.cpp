@@ -13,6 +13,11 @@ void p(T foo) {
   std::cout << foo << '\n';
 }
 
+void testStrlen() {
+  char * s = "123";
+  cout << std::strlen(s);
+}
+
 void teststrtok() {
   char str[] = "/sample/string";
   char * pch;
@@ -77,5 +82,6 @@ int main() {
   // char * p = "hh";
   // p[0] = 'a'; // undefined
   //foo();
-  cout << (char)65;
+  char a[4] = "123";
+  cout <<a;
 }

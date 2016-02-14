@@ -9,7 +9,7 @@
 class Inode {
 public:
   Inode();
-  friend std::ostream& operator << (std::ostream& fs, const Inode& node);
+  friend std::ostream& operator << (std::ostream& fs, Inode* node);
 
   /* file type: 0: regular file, 1: directory */
   int type;
@@ -35,7 +35,7 @@ class DirEntry {
 public:
   DirEntry(int id, int nlen, const char* name);
   std::size_t getSize();
-  friend std::ostream& operator << (std::ostream& fs, const DirEntry& en);
+  friend std::ostream& operator << (std::ostream& fs, DirEntry* en);
 
   int node_index;
   int nlen;
@@ -57,8 +57,6 @@ private:
   /* cwd_table is contains pairs of file name and its fd */
   std::map<std::string, int> cwd_table;
   int block_offset[6];
-  static int const isize = 256;
-  static int const dsize = 4*1024;
   int inum;
   int dnum;
   int fd_cnt;
@@ -72,13 +70,13 @@ private:
   int allocBit(int start, int len);
   int getInodeOffset(int id);
   int getDataOffset(int id);
-  int updateInode(int i_id, Inode * newnode);
+  int writeInode(int i_id, Inode * newnode);
   int createFile();
   int loadDirTable();
   int incrementDirFileCnt();
   int addFileToDir(int dir, int fd, char* name);
   //int getAddress_0(int node_id);
-  Inode * getInode(int id);
+  Inode * readInode(int i_id);
   int writeData(int i_id, const void * source, int len);
   
   /* virtual disk I/O */
@@ -86,6 +84,8 @@ private:
   void dread();
   void loadDisk();
 public:
+  static int isize;
+  static int dsize;
   VSFileSystem();
   ~VSFileSystem();
   /* shell */

@@ -9,7 +9,7 @@ void printHelp() {
 }
 
 
-int mkfs(int argc, char* argv[]) {
+int mkfs1(int argc, char* argv[]) {
   /* parameters of file system */
   int fs_size = 0;
   bool SET_SIZE = false;

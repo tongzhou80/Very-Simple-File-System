@@ -9,13 +9,17 @@ using namespace std;
 /*
   organization
   inode: 256 bytes
-
+  data block: 4k bytes
  */
 
 template <class T>
 void p(T foo) {
   std::cout << foo << '\n';
 }
+
+/* size of an inode and a data block */
+int VSFileSystem::isize = 256;
+int VSFileSystem::dsize = 4*1024;
 
 Inode::Inode() {
   this->type = 0; 
@@ -28,47 +32,48 @@ Inode::Inode() {
   this->gid = 0;
 }
 
-std::ostream& operator << (std::ostream& fs, const Inode& node) {
-  fs.write((char*)&node.type, sizeof(node.type));
-  fs.write((char*)&node.size, sizeof(node.size));
-  fs.write((char*)&node.addr_0, sizeof(node.addr_0));
+// std::ostream& operator << (std::ostream& fs, const Inode& node) {
+//   fs.write((char*)&node.type, sizeof(node.type));
+//   fs.write((char*)&node.size, sizeof(node.size));
+//   fs.write((char*)&node.addr_0, sizeof(node.addr_0));
   
+//   fs.flush();
+//   return fs;
+// }
+std::ostream& operator << (std::ostream& fs, Inode* node) {
+  fs.write((char*)node, sizeof(*node));
   fs.flush();
   return fs;
-  // return fs << node.type
-  // 	    << node.file_cnt
-  // 	    << node.size
-  // 	    << node.addr_0
-  // 	    << "mark";
 }
 
-std::ostream& operator << (std::ostream& fs, const DirEntry& en) {
-  fs.write((char*)&en.node_index, sizeof(en.node_index));
-  fs.write((char*)&en.nlen, sizeof(en.nlen));
-  fs.write(en.name, en.nlen*sizeof(int));
+std::istream& operator >> (std::istream& fs, Inode* node) {
+  fs.read((char*)node, sizeof(*node));
+  return fs;
+}
+
+std::ostream& operator << (std::ostream& fs, DirEntry* en) {
+  fs.write((char*)&(en->node_index), sizeof(en->node_index));
+  fs.write((char*)&(en->nlen), sizeof(en->nlen));
+  fs.write(en->name, en->nlen);
+  //fs.write((char*)en, sizeof(*en));
   fs.flush();
+  return fs;
 }
 
-/* write to data block of inode i_id */
-/* a wrap of memcpy */
-int VSFileSystem::writeData(int i_id, const void * source, int len) {
-  Inode * node = getInode(i_id);
-  int data_block_start = node->addr_0;
-  int capacity = node->block_left_size;
-  /* memcpy */
-  if (len <= capacity) {
-    std::memcpy((void *)data_block_start, source, len);
-    node->block_left_size = capacity - len;
-    //updateInode
-  }
-  else {
-    /* allocate new block */
-    /* recursive call writeData */
-  }
+std::istream& operator >> (std::istream& fs, DirEntry* en) {
+  int buffer;
+  fs.read((char*)&buffer, sizeof(buffer));
+  en->node_index = buffer;
+  fs.read((char*)&buffer, sizeof(buffer));
+  en->nlen = buffer;
 
-  /* update capacity */
-  delete node;
+  char* name = new char[en->nlen+1];
+  fs.read(name, en->nlen);
+  en->name = name; // please delete[] en->name when entry dies
+  //fs.read((char*)en, sizeof(*en));
+  return fs;
 }
+
 
 DirEntry::DirEntry(int id, int nlen, const char *name) {
   this->node_index = id;
@@ -84,9 +89,6 @@ std::size_t DirEntry::getSize() {
     + nlen;
 }
 
-// /* size of an inode and a data block */
-// int VSFileSystem::isize = 256;
-// int VSFileSystem::dsize = 4*1024;
 
 VSFileSystem::VSFileSystem() {
   disk_name = "vdisk";
@@ -103,8 +105,8 @@ VSFileSystem::VSFileSystem() {
   mkfs();
   root = mkdir();
   cwd = root;
-  //loadDirTable();
-  //open();
+  loadDirTable();
+  open();
 }
 
 VSFileSystem::~VSFileSystem() {
@@ -125,13 +127,13 @@ int VSFileSystem::createFile() {
     return -1;
   }
 
+  cout << "allocate inode id: " << i_id << endl;
+  cout << "allocate data block id: " << d_id << endl;
   Inode * node = new Inode();
-  int node_offset = getInodeOffset(i_id);
-  disk.seekp(node_offset);
-  disk << *node;
-  disk.flush();
+  node->addr_0 = getDataOffset(d_id);
+  writeInode(i_id, node);
 
-  /* maintain a file descriptor and fd map */
+  /* increment file descriptor and register in fd map */
   fd_cnt++;
   std::pair<int, int> index(i_id, d_id);
   std::pair<int, std::pair<int, int> > map_entry(fd_cnt, index);
@@ -153,8 +155,8 @@ int VSFileSystem::open() {
   int FLAG;
   input_stream->getline(filename, 256, ' ');
   input_stream->getline(flag, 256);
-  p(filename);
-  p(flag);
+  cout << "file name: " << filename << endl;
+  cout << "flag: " << flag << endl;
 
   if (std::strcmp(flag, "r") == 0) {
     FLAG = 0;
@@ -187,6 +189,16 @@ int VSFileSystem::open() {
   pch = std::strtok(filename, delim);
   while (pch != NULL) {
     /* find in current working dir */
+    cout << "find inode of " << pch << endl;
+    /* load dir table */
+
+    
+
+
+
+
+
+    
     std::map<std::string, int>::iterator iter = cwd_table.find(std::string(pch));
     if (iter != cwd_table.end()) {
       enter_file = iter->second;
@@ -206,7 +218,7 @@ int VSFileSystem::open() {
   }
 
 
-  
+  /* if write */
   if (FLAG == 1) {
     if (newfiles.size() > 1) {
       std::cerr << "directory not exist, please make directory first.\n";
@@ -215,8 +227,16 @@ int VSFileSystem::open() {
     
     enter_dir = enter_file;
     newfile_name = newfiles[0];
+    cout << "create new file " << newfile_name << " in inode(dir) " << enter_dir << endl;
+   
     int nfd = createFile();
+    cout << "update dir data content..." << endl;
     addFileToDir(enter_dir, nfd, newfile_name);
+    return nfd;
+  }
+  /* if read */
+  else if (FLAG == 0) {
+    
   }
 
   // if reading existing file
@@ -224,12 +244,40 @@ int VSFileSystem::open() {
   /* create new file */
 }
 
+/* write to data block of inode i_id */
+int VSFileSystem::writeData(int i_id, const void * source, int len) {
+  Inode * node = readInode(i_id);
+  int data_block_start = node->addr_0;
+  int capacity = node->block_left_size;
+  if (len <= capacity) {
+    disk.seekp(data_block_start);
+    disk.write((char*)source, len);
+    node->block_left_size = capacity - len;
+    //updateInode
+  }
+  else {
+    /* allocate new block */
+    /* recursive call writeData */
+  }
+
+  /* update capacity */
+  delete node;
+}
+
+
 int VSFileSystem::addFileToDir(int dir, int fd, char* name) {
-  Inode * dir_node = getInode(dir);
+  Inode * dir_node = readInode(dir);
   std::map<int, std::pair<int, int> >::iterator iter;
   iter = f_index.find(fd);
-  DirEntry * e = new DirEntry(fd, (iter->second).first, name);
-  cout << dir_node->size;
+  int f_inode_id = (iter->second).first;
+  DirEntry * e = new DirEntry(f_inode_id, std::strlen(name), name);
+  cout << "dir current size: " << dir_node->size << endl;
+
+  int write_p = dir_node->addr_0 + dir_node->size;
+  //cout << "write to place " << write_p << endl;
+  disk.seekp(write_p);
+  disk << e;
+  delete e;
   delete dir_node;
 }
 
@@ -237,56 +285,13 @@ int VSFileSystem::incrementDirFileCnt() {
   
 }
 
-// int VSFileSystem::getAddress_0(int node_id) {
-//   int inode_offset = getInodeOffset(node_id);
-//   char buffer[sizeof(int)];
-
-//   /* get file data address */
-//   disk.seekg(inode_offset);
-//   disk.read(buffer, (int)sizeof(int));
-//   disk.read(buffer, (int)sizeof(int));
-//   disk.read(buffer, (int)sizeof(int));
-//   int address_0 = *((int*)buffer);
-//   return address_0;
-// }
-
-Inode * VSFileSystem::getInode(int id) {
+Inode * VSFileSystem::readInode(int i_id) {
   Inode * node = new Inode();
-  int inode_offset = getInodeOffset(id);
-  char buffer[sizeof(int)];
-
-  /* get file data address */
-  disk.seekg(inode_offset);
-  disk.read(buffer, (int)sizeof(int));
-  node->type = *((int*)buffer);
-  disk.read(buffer, (int)sizeof(int));
-  node->size = *((int*)buffer);
-  disk.read(buffer, (int)sizeof(int));
-  node->addr_0 = *((int*)buffer);
+  int offset = getInodeOffset(i_id);
+  disk.seekg(offset);
+  disk >> node;
+  //disk.read((char*)node, sizeof(*node));
   return node;
-}
-
-int VSFileSystem::loadDirTable() {
-  int dir_start = getInode(cwd)->addr_0;
-  //int dir_start = getAddress_0(cwd);
-  disk.seekg(dir_start);
-  char buffer[sizeof(int)];
-  disk.read(buffer, (int)sizeof(int));
-  int file_cnt = *((int*)buffer);
-  p(file_cnt);
-  for (int i = 0; i < file_cnt; i++) {
-    disk.read(buffer, (int)sizeof(int));
-    int node_index = *((int*)buffer);
-    disk.read(buffer, (int)sizeof(int));
-    int name_len = *((int*)buffer);
-    disk.read(buffer, name_len*sizeof(int));
-    char* f_name = buffer;
-    std::pair<std::string, int> file_entry(std::string(f_name), node_index);
-    cwd_table.insert(file_entry);
-    p("insert:");
-    std::cout << f_name << " " << node_index << "\n";
-  }
-
 }
 
 int VSFileSystem::mkdir() {
@@ -302,25 +307,42 @@ int VSFileSystem::mkdir() {
     return -1;
   }
 
+  cout << "allocate inode id: " << i_id << endl;
+  cout << "allocate data block id: " << d_id << endl;
+  
+
   /* write new node into disk */
   Inode * node = new Inode();
   node->type = 1; // set inode type to dir
   int data_offset = getDataOffset(d_id);
   node->addr_0 = data_offset;
-  
+
   DirEntry * e1 = new DirEntry(i_id, 1, ".");
   DirEntry * e2 = new DirEntry(i_id, 2, "..");
+
+  cout << "write dir content..." << endl;
   disk.seekp(data_offset);
   /* first byte in data block represents file counter */
   int init_file_cnt = 2;
   disk.write((char*)&init_file_cnt, sizeof(int));
-  disk << *e1;
-  disk << *e2;
+  disk << e1;
+  disk << e2;
 
+  
+  cout << "write dir inode..." << endl;
   /* update size field in inode */
-  int newsize = e1->getSize() + e2->getSize();
+  int newsize = sizeof(init_file_cnt) + e1->getSize() + e2->getSize();
   node->size = newsize;
-  updateInode(i_id, node);
+  writeInode(i_id, node);
+  
+
+  /* debug */
+  // DirEntry * t = new DirEntry(0, 0, "");
+  // disk.seekg(data_offset);
+  // disk.read((char*)t, sizeof(*t));
+  // cout << "test read\n";
+  // cout << t->name << '\n';
+
 
   delete node;
   delete e1;
@@ -328,16 +350,38 @@ int VSFileSystem::mkdir() {
   return i_id;
 }
 
-// int VSFileSystem::updateInode1(int node_offset, int inner_offset, char* buffer, std::size_t num) {
-//   disk.seekp(node_offset + inner_offset);
-//   disk.write(buffer, num);
-//   disk.flush();
-// }
 
-int VSFileSystem::updateInode(int i_id, Inode * newnode) {
+int VSFileSystem::loadDirTable() {
+  cout << "load current dir table into memory..." << endl;
+  Inode * dir = readInode(cwd);
+  int dir_start = dir->addr_0;
+
+  cout << "get file counter..." << endl;
+  /* get file counter */
+  disk.seekg(dir_start);
+  char buffer[sizeof(int)];
+  disk.read(buffer, (int)sizeof(int));
+  int file_cnt = *((int*)buffer);
+  cout << "file counter:" << " " << file_cnt << "\n";
+
+  DirEntry * en = new DirEntry(0, 0, "");
+  for (int i = 0; i < file_cnt; i++) {
+    disk >> en;
+    std::pair<std::string, int> file_entry(std::string(en->name), en->node_index);
+    cwd_table.insert(file_entry);
+    cout << "insert to table:" << endl;
+    std::cout << en->name << " " << en->node_index << "\n";
+  }
+  delete[] en->name; 
+  delete en;
+}
+
+
+int VSFileSystem::writeInode(int i_id, Inode * newnode) {
   int offset = getInodeOffset(i_id);
-  cout << "sizeof\n";
-  cout << sizeof(newnode);
+  disk.seekp(offset);
+  disk << newnode;
+  //disk.write((char*)newnode, sizeof(*newnode));
 }
 
 
@@ -403,6 +447,8 @@ int VSFileSystem::mkfs() {
 
   calcOffset();
   initSuper();
+  resetImap();
+  resetDmap();
 }
 
 /* virtualize disk I/O in memory */

@@ -1,88 +1,68 @@
 
+cmd/mkfs.cpp,56
+void printHelp(6,78
+int mkfs1(12,230
+int main(44,868
+
+cmd/test.cpp,15
+int main(4,42
+
 FSShell.cpp,70
 void FSShell::prompt(3,24
 int FSShell::exec(12,192
 int main(17,279
 
-FSShell.hpp,89
+FSShell.hpp,44
 #define MY_SHELL_H3,20
 class FSShell 8,79
-  std::string curCmd;FSShell::curCmd10,103
 
-cmd/mkfs.cpp,55
-void printHelp(6,78
-int mkfs(12,230
-int main(44,867
+test.cpp,133
+void p(12,192
+void teststrtok(16,239
+void testWrite(27,430
+void time(40,700
+void foo(46,840
+void bar(68,1312
+int main(76,1449
 
-cmd/test.cpp,15
-int main(4,42
+vsfs.cpp,1273
+void p(16,239
+int VSFileSystem::isize 21,326
+int VSFileSystem::dsize 22,357
+Inode::Inode(24,392
+std::ostream& operator << operator <<43,846
+std::istream& operator >> operator >>49,976
+std::ostream& operator << operator <<54,1091
+std::istream& operator >> operator >>60,1218
+int VSFileSystem::writeData(66,1370
+DirEntry::DirEntry(85,1834
+std::size_t DirEntry::getSize(93,2004
+VSFileSystem::VSFileSystem(100,2101
+VSFileSystem::~VSFileSystem(119,2504
+int VSFileSystem::createFile(124,2586
+int VSFileSystem::open(156,3289
+int VSFileSystem::addFileToDir(233,4818
+int VSFileSystem::incrementDirFileCnt(244,5113
+Inode * VSFileSystem::readInode(248,5161
+int VSFileSystem::mkdir(272,5822
+int VSFileSystem::loadDirTable(322,7036
+int VSFileSystem::writeInode(354,8039
+int VSFileSystem::getInodeOffset(364,8262
+int VSFileSystem::getDataOffset(368,8347
+int VSFileSystem::allocBit(377,8520
+void VSFileSystem::prompt(395,8895
+int VSFileSystem::execCmd(413,9243
+int VSFileSystem::mkfs(419,9324
+void VSFileSystem::loadDisk(427,9465
+void VSFileSystem::calcOffset(431,9524
+void VSFileSystem::resetImap(447,9890
+void VSFileSystem::resetDmap(456,10081
+void VSFileSystem::initSuper(465,10272
+int VSFileSystem::createVirtualDisk(473,10450
+int main(486,10799
 
-vsfs.cpp,940
-void p(16,197
-Inode::Inode(20,244
-std::ostream& operator << operator <<29,377
-std::ostream& operator << operator <<37,566
-DirEntry::DirEntry(49,853
-std::size_t DirEntry::getSize(57,1023
-VSFileSystem::VSFileSystem(63,1119
-VSFileSystem::~VSFileSystem(85,1536
-int VSFileSystem::createFile(90,1618
-int VSFileSystem::open(124,2340
-int VSFileSystem::loadDirTable(152,2911
-int VSFileSystem::mkdir(160,3071
-int VSFileSystem::updateInode(200,4063
-int VSFileSystem::getInodeOffset(209,4283
-int VSFileSystem::getDataOffset(213,4368
-int VSFileSystem::allocBit(221,4539
-void VSFileSystem::prompt(235,4799
-int VSFileSystem::execCmd(253,5147
-int VSFileSystem::mkfs(259,5228
-void VSFileSystem::loadDisk(267,5369
-void VSFileSystem::calcOffset(271,5428
-void VSFileSystem::resetImap(298,6047
-void VSFileSystem::resetDmap(307,6238
-void VSFileSystem::initSuper(316,6429
-int VSFileSystem::createVirtualDisk(324,6607
-int main(337,6956
-
-vsfs.hpp,1273
+vsfs.hpp,88
 #define VSFS_H3,16
 class Inode 9,83
-  int type;Inode::type15,240
-  int mode;Inode::mode16,252
-  int uid;Inode::uid17,264
-  int gid;Inode::gid18,275
-  int size;Inode::size19,286
-  int file_cnt;Inode::file_cnt20,298
-  int addr_0;Inode::addr_024,400
-  int addr_1;Inode::addr_125,414
-  int addr_2;Inode::addr_226,428
-class DirEntry 29,446
-  int node_index;DirEntry::node_index35,620
-  int nlen;DirEntry::nlen38,674
-  const char * name;DirEntry::name39,686
-class VSFileSystem 42,711
-  const char* disk_name;VSFileSystem::disk_name44,741
-  int disk_size;VSFileSystem::disk_size45,766
-  std::fstream disk;VSFileSystem::disk46,783
-  std::istream * input_stream;VSFileSystem::input_stream47,804
-  int cwd;VSFileSystem::cwd48,835
-  int root;VSFileSystem::root49,846
-  std::map<VSFileSystem::std::map50,858
-  std::map<char*, int> cwd_table;VSFileSystem::cwd_table50,858
-  int block_offset[VSFileSystem::block_offset51,892
-  int isize;VSFileSystem::isize52,915
-  int dsize;VSFileSystem::dsize53,928
-  int inum;VSFileSystem::inum54,941
-  int dnum;VSFileSystem::dnum55,953
-  int fd_cnt;VSFileSystem::fd_cnt56,965
-  std::map<VSFileSystem::std::map57,979
-  std::map<int, std::pair<int, int> > f_index;VSFileSystem::f_index57,979
-
-test.cpp,110
-void p(12,172
-void teststrtok(16,219
-void time(27,409
-void foo(33,549
-void bar(55,1021
-int main(63,1158
+class DirEntry 34,562
+class VSFileSystem 49,836
