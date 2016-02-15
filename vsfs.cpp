@@ -12,19 +12,66 @@ using namespace std;
   data block: 4k bytes
  */
 
-template <class T>
-void p(T foo) {
-  std::cout << foo << '\n';
+// template <class T>
+// void p(T foo) {
+//   std::cout << foo << '\n';
+// }
+
+template <typename T>
+void pp(const T& t){
+  cout << t << '\n';  
+}
+
+template <typename T, typename ... Args>
+void pp(const T& t, Args ... args){
+  cout << t << ' ';
+  pp(args...);
 }
 
 /* size of an inode and a data block */
 int VSFileSystem::isize = 256;
 int VSFileSystem::dsize = 4*1024;
 
+VSFileSystem::VSFileSystem() {
+  disk_name = "vdisk";
+  disk_size = 2*1024*1024;
+  cap_0 = VSFileSystem::dsize;
+  cap_1 = cap_0 / sizeof(int) * cap_0;
+  cap_2 = cap_0 / sizeof(int) * cap_1;
+  calcGlobalOffset();
+  printConfig();
+  
+  /* start from 3, 0-2 reserve for std fd */
+  fd_cnt = 2;
+  root = 0; // root defaults to No. 0 inode  
+
+  /* use a general stringstream if not read from stdin */
+  input_stream = &std::cin;
+  disk.open(disk_name, std::fstream::binary | std::fstream::in | std::fstream::out);
+  /* by default, open root dir */
+  cwd = root;
+  loadDirTable();
+  
+  /* debug */
+  //root = mkfs(); // call mkfs will wipe and format the disk
+  open("foo", "w");
+  open("bar", "w");
+  write(3, "good restraut!");
+  cat("foo");
+  seek(3, 4);
+  write(3, "hello");
+  seek(3, 0);
+  read(3, 12);
+  close(3);
+  close(3);
+  ls();
+}
+
+
 Inode::Inode() {
   this->type = 0; 
   this->size = 0;
-  this->block_left_size = VSFileSystem::dsize;
+  this->capacity = VSFileSystem::dsize;
   this->addr_0 = 0;
   
   this->mode = 664;
@@ -89,25 +136,13 @@ std::size_t DirEntry::getSize() {
     + nlen;
 }
 
-
-VSFileSystem::VSFileSystem() {
-  disk_name = "vdisk";
-  disk_size = 2*1024*1024;
-
-  /* start from 3, 0-2 reserve for std fd */
-  fd_cnt = 2;
-
-  /* use a general stringstream if not read from stdin */
-  input_stream = &std::cin;
-  disk.open(disk_name, std::fstream::binary | std::fstream::in | std::fstream::out);
-
-  /* debug */
-  mkfs();
-  root = mkdir();
-  cwd = root;
-  loadDirTable();
-  open();
+void VSFileSystem::printConfig() {
+  std::cout << "disk size: " << disk_size << std::endl;
+  std::cout << "level 0 capacity: " << cap_0/1024 << "Kb" << std::endl;
+  std::cout << "level 1 capacity: " << cap_1/1024/1024 << "Mb" << std::endl;
+  std::cout << "level 2 capacity: " << cap_2/1024/1024/1024 << "Gb" << std::endl;
 }
+
 
 VSFileSystem::~VSFileSystem() {
   disk.close();
@@ -135,26 +170,51 @@ int VSFileSystem::createFile() {
 
   /* increment file descriptor and register in fd map */
   fd_cnt++;
-  std::pair<int, int> index(i_id, d_id);
-  std::pair<int, std::pair<int, int> > map_entry(fd_cnt, index);
-  f_index.insert(map_entry);
+  registerFD(fd_cnt, i_id);
+  // std::pair<int, int> index(i_id, 0); // file pointer defaults to 0
+  // std::pair<int, std::pair<int, int> > map_entry(fd_cnt, index);
+  // fd_map.insert(map_entry);
   return fd_cnt;
 }
 
-/* flags:
+int VSFileSystem::registerFD(int fd, int i_id) {
+  std::pair<int, int> index(i_id, 0); // file pointer defaults to 0
+  std::pair<int, std::pair<int, int> > map_entry(fd, index);
+  fd_map.insert(map_entry);
+  return fd;
+}
+
+int VSFileSystem::releaseFD(int fd) {
+  std::map<int, std::pair<int, int> >::iterator iter;
+  iter = fd_map.find(fd);
+  if (iter == fd_map.end()) {
+    std::cerr << "unknown file descriptor\n";
+    return -1;
+  }
+  else {
+    pp("erase fd", fd, "in fd_map");
+    fd_map.erase(iter);
+  }
+
+}
+
+/*
+  flags:
    'r': read
    'w': write
    return a file descriptor
  */
+/* to to do */
+/* only suuport current dir now, but designed to support any path */
+int VSFileSystem::open(char* filename, char* flag) {
+  // char filename[256];
+  // char flag[2];
+  // input_stream->getline(filename, 256, ' ');
+  // input_stream->getline(flag, 256);
 
-//int VSFileSystem
-
-int VSFileSystem::open() {
-  char filename[256];
-  char flag[2];
+  pp("===== open =====");
   int FLAG;
-  input_stream->getline(filename, 256, ' ');
-  input_stream->getline(flag, 256);
+
   cout << "file name: " << filename << endl;
   cout << "flag: " << flag << endl;
 
@@ -191,13 +251,8 @@ int VSFileSystem::open() {
     /* find in current working dir */
     cout << "find inode of " << pch << endl;
     /* load dir table */
-
+    /* to do */
     
-
-
-
-
-
     
     std::map<std::string, int>::iterator iter = cwd_table.find(std::string(pch));
     if (iter != cwd_table.end()) {
@@ -218,11 +273,31 @@ int VSFileSystem::open() {
   }
 
 
-  /* if write */
-  if (FLAG == 1) {
+  if (fileExist) {
+    if (FLAG == 0) {
+      cout << "read: open file node " << enter_file << endl;      
+    }
+    else if (FLAG == 1) {
+      cout << "write: open file node " << enter_file << endl;
+    }
+    else {
+      /* pass */
+    }
+    
+    fd_cnt++;
+    cout << "register fd " << fd_cnt << " in fd map" << endl;
+    registerFD(fd_cnt, enter_file);
+    std::cout << "SUCCESS, fd = " << fd_cnt << std::endl;
+    return fd_cnt;
+  }
+  /* if file not exist, create new file */
+  else {
     if (newfiles.size() > 1) {
-      std::cerr << "directory not exist, please make directory first.\n";
-      return -1;
+    	std::cerr << "dir not exist, please make dir first.\n";
+    	return -1;
+    }
+    else {
+    	/* pass */
     }
     
     enter_dir = enter_file;
@@ -232,51 +307,256 @@ int VSFileSystem::open() {
     int nfd = createFile();
     cout << "update dir data content..." << endl;
     addFileToDir(enter_dir, nfd, newfile_name);
+    std::cout << "SUCCESS, fd = " << fd_cnt << std::endl;
     return nfd;
   }
-  /* if read */
-  else if (FLAG == 0) {
-    
-  }
 
-  // if reading existing file
-  
-  /* create new file */
+  return -1;
 }
 
-/* write to data block of inode i_id */
-int VSFileSystem::writeData(int i_id, const void * source, int len) {
-  Inode * node = readInode(i_id);
-  int data_block_start = node->addr_0;
-  int capacity = node->block_left_size;
-  if (len <= capacity) {
-    disk.seekp(data_block_start);
-    disk.write((char*)source, len);
-    node->block_left_size = capacity - len;
-    //updateInode
+int VSFileSystem::ls() {
+  pp("===== ls =====");
+  std::map<std::string, int>::iterator iter;
+  for(iter = cwd_table.begin(); iter != cwd_table.end(); ++iter)
+  {
+    std::cout << iter->first << " " << iter->second << std::endl;
+  }
+}
+
+int VSFileSystem::close(int fd) {
+  pp("===== close", fd, "=====");
+  releaseFD(fd);
+  return 0;
+}
+
+int VSFileSystem::seek(int fd, int offset) {
+  std::map<int, std::pair<int, int> >::iterator iter;
+  iter = fd_map.find(fd);
+  if (iter == fd_map.end()) {
+    std::cerr << "unknown file descriptor\n";
+    return -1;
   }
   else {
-    /* allocate new block */
-    /* recursive call writeData */
+    /* set file offset */
+    (iter->second).second = offset;
+  }
+  return 0;
+}
+
+int VSFileSystem::write(int fd, char* str) {
+  pp("===== write ======");
+  
+  std::map<int, std::pair<int, int> >::iterator iter;
+  iter = fd_map.find(fd);
+  if (iter == fd_map.end()) {
+    std::cerr << "unknown file descriptor\n";
+    return -1;
+  }
+  else {
+    int i_id = (iter->second).first;
+    int f_offset = (iter->second).second;
+    pp("file offset:", f_offset);
+    pp("write string...");
+    writeData(i_id, f_offset, str, std::strlen(str));
+
+    
+    /* update file offset */
+    (iter->second).second = std::strlen(str);
+    pp("update file offset to:", (iter->second).second);
+  }
+}
+
+int VSFileSystem::calcDiskAddr(int i_id, int f_offset) {
+  Inode * node = readInode(i_id);
+  int data_block_start = node->addr_0;
+  int disk_addr;
+
+  /* cap_0 also denotes one data block */
+  
+  /* if only use addr_0 */
+  if (f_offset < cap_0) {
+    disk_addr = node->addr_0 + f_offset;
+  }
+  /* if use addr_0 and addr_1 */
+  else if (f_offset < cap_1) {
+    int addr_1_0 = getIntAt(node->addr_1);
+    int offset_1 = f_offset - cap_0;
+    disk_addr = addr_1_0 + offset_1/cap_0 * sizeof(int) + offset_1%cap_0;
+  }
+  /* if use three level address */
+  else if (f_offset < cap_2) {
+    
+  }
+  else {
+    std::cerr << "file offset over 4Gb, too large to handle.\n";
   }
 
-  /* update capacity */
+  return disk_addr;
   delete node;
 }
 
+int VSFileSystem::dwrite(int dest, const void * source, int len) {
+  disk.seekp(dest);
+  disk.write((char*)source, len);
+  disk.flush();
+}
+
+int VSFileSystem::getBlockInnerOffset(int offset) {
+  return offset % VSFileSystem::dsize;
+}
+
+/* write to data block of inode i_id */
+int VSFileSystem::writeData(int i_id, int f_offset, const void * source, int len) {
+  Inode * node = readInode(i_id);
+  int capacity = node->capacity;
+  pp("read node capacity...", capacity);
+  int block_left = capacity - f_offset;
+
+  /* file offset within capacity */
+  if (block_left > 0) {
+    /* check if writing involves more than one block */
+    int block_inner_offset = getBlockInnerOffset(f_offset);
+    pp("block_inner_offset", block_inner_offset);
+
+    /* if involves only current block */
+    if (block_inner_offset + len <= VSFileSystem::dsize) {
+      int disk_addr = calcDiskAddr(i_id, f_offset);
+      pp("write", len, "bytes to address", disk_addr);
+      dwrite(disk_addr, source, len);
+    }
+    else {
+      
+    }
+
+    
+    // if (len <= block_left) {
+    //   int disk_addr = calcDiskAddr(i_id, f_offset);
+    //   pp("write", len, "bytes to address", disk_addr);
+    //   dwrite(disk_addr, source, len);
+    //   pp("update file size...");
+    //   node->size += len;
+    // }
+  }
+  else if (f_offset == capacity) {
+    /* allocate new block */
+    
+  }
+
+  /* update file size */
+  if (f_offset + len <= node->size) {
+    /* don't update size */
+  }
+  else {
+    node->size = f_offset + len;
+    pp("update file size to", node->size);
+  }
+  /* update capacity */
+
+  
+  writeInode(i_id, node);
+  delete node;
+}
+
+int VSFileSystem::read(int fd, int size) {
+  pp("===== read =====");
+  std::map<int, std::pair<int, int> >::iterator iter;
+  iter = fd_map.find(fd);
+  if (iter == fd_map.end()) {
+    std::cerr << "unknown file descriptor\n";
+    return -1;
+  }
+  
+  int i_id = (iter->second).first;
+  int f_offset = (iter->second).second;
+  Inode* node = readInode(i_id);
+
+  int len = size;
+  if (f_offset + size > node->size) {
+    len = node->size - f_offset;
+    std::cout << "read " << len << " reaches end of file" << std::endl;
+  }
+
+  char* buffer = new char[len+1];
+  readData(i_id, f_offset, buffer, len);
+  buffer[len] = '\0';
+  std::cout << buffer << std::endl;
+  delete[] buffer;
+  delete node;
+}
+
+int VSFileSystem::cat(char* filename) {
+  pp("===== cat =====");
+  pp("lookup working dir table...");
+  std::map<std::string, int>::iterator iter = cwd_table.find(std::string(filename));
+  if (iter == cwd_table.end()) {
+    std::cerr << "no such file.\n";
+  }
+  else {
+    int i_id = iter->second;
+    pp("file inode id:", i_id);
+    Inode * node = readInode(i_id);
+    int file_size = node->size;
+    pp("file size:", node->size);
+
+    char* content = new char[file_size+1];
+    readData(i_id, 0, content, file_size);
+    content[file_size] = '\0';
+    std::cout << content << std::endl;
+    delete[] content;
+    delete node;
+  }
+}
+
+int VSFileSystem::readData(int i_id, int f_offset, void * buffer, int len) {
+  /* no seek boundry check */
+  /* readData should be low-level */ 
+  Inode * node = readInode(i_id);
+
+  int block_inner_offset = getBlockInnerOffset(f_offset);
+  pp("block_inner_offset", block_inner_offset);
+
+  /* if involves only current block */
+  if (block_inner_offset + len <= VSFileSystem::dsize) {
+    int disk_addr = calcDiskAddr(i_id, f_offset);
+    pp("read", len, "bytes from address", disk_addr);
+    dread(disk_addr, buffer, len);
+  }
+  else {
+      
+  }
+
+
+  delete node;
+
+}
+
+int VSFileSystem::dread(int dest, void * buffer, int len) {
+  disk.seekg(dest);
+  disk.read((char*)buffer, len);
+}
 
 int VSFileSystem::addFileToDir(int dir, int fd, char* name) {
   Inode * dir_node = readInode(dir);
   std::map<int, std::pair<int, int> >::iterator iter;
-  iter = f_index.find(fd);
+  iter = fd_map.find(fd);
   int f_inode_id = (iter->second).first;
   DirEntry * e = new DirEntry(f_inode_id, std::strlen(name), name);
-  cout << "dir current size: " << dir_node->size << endl;
 
   int write_p = dir_node->addr_0 + dir_node->size;
   //cout << "write to place " << write_p << endl;
   disk.seekp(write_p);
   disk << e;
+
+  /* update file size */
+  dir_node->size += e->getSize();
+  writeInode(dir, dir_node);
+
+  /* update file counter */
+  int f_cnt = getIntAt(dir_node->addr_0);
+  putIntAt(dir_node->addr_0, f_cnt+1);
+
+  cout << "dir updated size: " << dir_node->size << endl;
+  cout << "dir's now file number: " << f_cnt+1 << endl;
   delete e;
   delete dir_node;
 }
@@ -350,6 +630,19 @@ int VSFileSystem::mkdir() {
   return i_id;
 }
 
+/* side effect: move file offset one byte forward */
+int VSFileSystem::getIntAt(int addr) {
+  int buffer;
+  disk.seekg(addr);
+  disk.read((char*)&buffer, sizeof(buffer));
+  return buffer;
+}
+
+int VSFileSystem::putIntAt(int addr, int value) {
+  disk.seekp(addr);
+  disk.write((char*)&value, sizeof(value));
+  disk.flush();
+}
 
 int VSFileSystem::loadDirTable() {
   cout << "load current dir table into memory..." << endl;
@@ -358,10 +651,11 @@ int VSFileSystem::loadDirTable() {
 
   cout << "get file counter..." << endl;
   /* get file counter */
-  disk.seekg(dir_start);
-  char buffer[sizeof(int)];
-  disk.read(buffer, (int)sizeof(int));
-  int file_cnt = *((int*)buffer);
+  int file_cnt = getIntAt(dir_start);
+  // disk.seekg(dir_start);
+  // char buffer[sizeof(int)];
+  // disk.read(buffer, (int)sizeof(int));
+  // int file_cnt = *((int*)buffer);
   cout << "file counter:" << " " << file_cnt << "\n";
 
   DirEntry * en = new DirEntry(0, 0, "");
@@ -445,10 +739,11 @@ int VSFileSystem::execCmd(std::string cmd) {
 int VSFileSystem::mkfs() {
   //char* disk_name = createVirtualDisk();
 
-  calcOffset();
   initSuper();
   resetImap();
   resetDmap();
+  int root_node_id = mkdir();
+  return root_node_id;
 }
 
 /* virtualize disk I/O in memory */
@@ -456,7 +751,7 @@ void VSFileSystem::loadDisk() {
   disk.open(disk_name);
 }
 
-void VSFileSystem::calcOffset() {
+void VSFileSystem::calcGlobalOffset() {
   int kb = 1 << 10;
   int mb = 1 << 20;
   block_offset[0] = 0*kb;
@@ -502,7 +797,7 @@ int VSFileSystem::createVirtualDisk() {
   std::cout << "creating virtual disk...\n";
   /* if use disk_name instead of a string literal, the disk size will be unexpected */
   std::ofstream ofs("vdisk", std::ios::binary | std::ios::out);
-  p(disk_size);
+  pp(disk_size);
   for (int i = 0; i < disk_size; i++) {
     ofs.write("", 1);
   }

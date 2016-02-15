@@ -14,7 +14,7 @@ public:
   /* file type: 0: regular file, 1: directory */
   int type;
   int size;
-  int block_left_size; // track how many bytes left in current 4k block
+  int capacity; // track how many bytes left in current 4k block
   int addr_0;
 
   /* to do */
@@ -59,29 +59,41 @@ private:
   int block_offset[6];
   int inum;
   int dnum;
+  long long cap_0;
+  long long cap_1;
+  long long cap_2;
+  
   int fd_cnt;
-  std::map<int, std::pair<int, int> > f_index;
+  /* fd: (inode id, file inner pointer) */
+  std::map<int, std::pair<int, int> > fd_map;
   
   int createVirtualDisk();
   void initSuper();
-  void calcOffset();
+  void calcGlobalOffset();
   void resetImap();
   void resetDmap();
   int allocBit(int start, int len);
   int getInodeOffset(int id);
   int getDataOffset(int id);
   int writeInode(int i_id, Inode * newnode);
+  Inode * readInode(int i_id);
   int createFile();
   int loadDirTable();
   int incrementDirFileCnt();
   int addFileToDir(int dir, int fd, char* name);
-  //int getAddress_0(int node_id);
-  Inode * readInode(int i_id);
-  int writeData(int i_id, const void * source, int len);
+  int getIntAt(int addr);
+  int putIntAt(int addr, int value);
+  int writeData(int i_id, int f_offset, const void * source, int len);
+  int readData(int i_id, int f_offset, void * buffer, int len);
+  int registerFD(int fd, int i_id);
+  int releaseFD(int fd);
+  int calcDiskAddr(int i_id, int f_offset);
+  int getBlockInnerOffset(int offset);
+  void printConfig();
   
   /* virtual disk I/O */
-  void dwrite();
-  void dread();
+  int dwrite(int dest, const void * source, int len);
+  int dread(int dest, void * buffer, int len);
   void loadDisk();
 public:
   static int isize;
@@ -97,9 +109,13 @@ public:
   /* commands implementations */
   int mkfs();
   int mkdir();
-  int open();
-  // int read();
-  // int write();
+  int open(char* filename, char* flag);
+  int close(int fd);
+  int seek(int fd, int offset);
+  int read(int fd, int size);
+  int write(int fd, char* str);
+  int cat(char* filename);
+  int ls();
 };
 
 #endif
