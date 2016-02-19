@@ -56,7 +56,7 @@ private:
   int root;
   /* cwd_table is contains pairs of file name and its fd */
   std::map<std::string, int> cwd_table;
-  int block_offset[6];
+  int section_offset[6];
   int inum;
   int dnum;
   long long cap_0;
@@ -73,6 +73,8 @@ private:
   void resetImap();
   void resetDmap();
   int allocBit(int start, int len);
+  int allocInodeBlock();
+  int allocDataBlock();
   int getInodeOffset(int id);
   int getDataOffset(int id);
   int writeInode(int i_id, Inode * newnode);

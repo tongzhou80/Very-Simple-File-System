@@ -72,7 +72,9 @@ Inode::Inode() {
   this->type = 0; 
   this->size = 0;
   this->capacity = VSFileSystem::dsize;
-  this->addr_0 = 0;
+  this->addr_0 = -1;
+  this->addr_1 = -1;
+  this->addr_2 = -1;
   
   this->mode = 664;
   this->uid = 0;
@@ -150,13 +152,13 @@ VSFileSystem::~VSFileSystem() {
 
 /* return a file descriptor */
 int VSFileSystem::createFile() {
-  int i_id = allocBit(block_offset[1], inum);
+  int i_id = allocInodeBlock();
   if (i_id == -1) {
     std::cerr << "fail to allocate inode, inode region full.\n";
     return -1;
   }
 
-  int d_id = allocBit(block_offset[2], dnum);
+  int d_id = allocDataBlock();
   if (d_id == -1) {
     std::cerr << "fail to allocate data block, disk full.\n";
     return -1;
@@ -366,6 +368,15 @@ int VSFileSystem::write(int fd, char* str) {
   }
 }
 
+int VSFileSystem::allocAddr_1(Inode * node) {
+  int d_id = allocDataBlock();
+  if (d_id == -1) {
+    std::cerr << "allocate data block failed." << std::endl;
+  }
+
+  node->addr_1 = getDataOffset(d_id);
+}
+
 int VSFileSystem::calcDiskAddr(int i_id, int f_offset) {
   Inode * node = readInode(i_id);
   int data_block_start = node->addr_0;
@@ -418,14 +429,17 @@ int VSFileSystem::writeData(int i_id, int f_offset, const void * source, int len
     int block_inner_offset = getBlockInnerOffset(f_offset);
     pp("block_inner_offset", block_inner_offset);
 
+    int disk_addr = calcDiskAddr(i_id, f_offset);
     /* if involves only current block */
     if (block_inner_offset + len <= VSFileSystem::dsize) {
-      int disk_addr = calcDiskAddr(i_id, f_offset);
       pp("write", len, "bytes to address", disk_addr);
       dwrite(disk_addr, source, len);
     }
     else {
-      
+      int write_len = VSFileSystem::dsize - block_inner_offset;
+      pp("write", write_len, "bytes to address", disk_addr);
+      dwrite(disk_addr, source, write_len);
+      writeData(i_id, f_offset+write_len, source+write_len, len-write_len);
     }
 
     
@@ -439,7 +453,15 @@ int VSFileSystem::writeData(int i_id, int f_offset, const void * source, int len
   }
   else if (f_offset == capacity) {
     /* allocate new block */
-    
+    /* check if use level 1 address */
+    if (node->addr_1 == -1) {
+      allocAddr_1(node);
+    }
+    /* check if use level 1 address */
+    /* to do */
+
+    allocLevel1Block(node);
+    writeData(i_id, f_offset, source, len);
   }
 
   /* update file size */
@@ -450,11 +472,21 @@ int VSFileSystem::writeData(int i_id, int f_offset, const void * source, int len
     node->size = f_offset + len;
     pp("update file size to", node->size);
   }
-  /* update capacity */
-
   
   writeInode(i_id, node);
   delete node;
+}
+
+int VSFileSystem::allocLevel1Block(Inode * node) {
+  int dsize = VSFileSystem::dsize;
+  int level1_block_index = (node->capacity - 1*dsize) / dsize;
+  int new_block_pter = node->addr_1 + level1_block_index * sizeof(int);
+  int d_id = allocDataBlock();
+  putIntAt(new_block_pter, getDataOffset(d_id));
+
+  pp("update node capacity...");
+  node->capacity += dsize;
+  return 0;
 }
 
 int VSFileSystem::read(int fd, int size) {
@@ -575,13 +607,13 @@ Inode * VSFileSystem::readInode(int i_id) {
 }
 
 int VSFileSystem::mkdir() {
-  int i_id = allocBit(block_offset[1], inum);
+  int i_id = allocBit(section_offset[1], inum);
   if (i_id == -1) {
     std::cerr << "fail to allocate inode, inode region full.\n";
     return -1;
   }
 
-  int d_id = allocBit(block_offset[2], dnum);
+  int d_id = allocBit(section_offset[2], dnum);
   if (d_id == -1) {
     std::cerr << "fail to allocate data block, disk full.\n";
     return -1;
@@ -682,11 +714,11 @@ int VSFileSystem::writeInode(int i_id, Inode * newnode) {
 //int VSFileSystem::addDirEntry
 
 int VSFileSystem::getInodeOffset(int id) {
-  return block_offset[3] + isize * id;
+  return section_offset[3] + isize * id;
 }
 
 int VSFileSystem::getDataOffset(int id) {
-  return block_offset[4] + dsize * id;
+  return section_offset[4] + dsize * id;
 }
 
 
@@ -712,22 +744,15 @@ int VSFileSystem::allocBit(int start, int len) {
   return -1;
 }
 
+int VSFileSystem::allocInodeBlock() {
+  int i_id = allocBit(section_offset[1], inum);
+  return i_id;
+}
+
+
 void VSFileSystem::prompt() {
-  const int MAX_LEN = 1024;
-  char* input = new char[MAX_LEN];
-  char* op;
-  
-  while(1) {
-    std::cout << "$ ";
-    std::cin.getline(input, MAX_LEN);
-    op = std::strtok(input, " \n");
-    if (std::strcmp(op, "mkfs") == 0) {
-      mkfs();
-    }
-    else {
-      std::cout << "command not supported\n";
-    }
-  }
+  int d_id = allocBit(section_offset[2], dnum);
+  return d_id;
 }
 
 int VSFileSystem::execCmd(std::string cmd) {
@@ -754,22 +779,22 @@ void VSFileSystem::loadDisk() {
 void VSFileSystem::calcGlobalOffset() {
   int kb = 1 << 10;
   int mb = 1 << 20;
-  block_offset[0] = 0*kb;
-  block_offset[1] = 2*kb;
-  block_offset[2] = 4*kb;
-  block_offset[3] = 8*kb;
-  block_offset[4] = 100*kb;
-  block_offset[5] = 2*mb;
+  section_offset[0] = 0*kb;
+  section_offset[1] = 2*kb;
+  section_offset[2] = 4*kb;
+  section_offset[3] = 8*kb;
+  section_offset[4] = 100*kb;
+  section_offset[5] = 2*mb;
 
-  inum = (block_offset[4] - block_offset[3])/isize;
-  dnum = (block_offset[5] - block_offset[4])/dsize;
+  inum = (section_offset[4] - section_offset[3])/isize;
+  dnum = (section_offset[5] - section_offset[4])/dsize;
   //p(inum);
   //p(dnum);
 }
 
 void VSFileSystem::resetImap() {
-  disk.seekp(block_offset[1]);
-  int len = block_offset[2] - block_offset[1];
+  disk.seekp(section_offset[1]);
+  int len = section_offset[2] - section_offset[1];
   for (int i = 0; i < len; i++) {
     disk.write("", 1);
   }
@@ -777,8 +802,8 @@ void VSFileSystem::resetImap() {
 }
 
 void VSFileSystem::resetDmap() {
-  disk.seekp(block_offset[2]);
-  int len = block_offset[3] - block_offset[2];
+  disk.seekp(section_offset[2]);
+  int len = section_offset[3] - section_offset[2];
   for (int i = 0; i < len; i++) {
     disk.write("", 1);
   }
@@ -786,7 +811,7 @@ void VSFileSystem::resetDmap() {
 }
 
 void VSFileSystem::initSuper() {
-  disk.seekp(block_offset[0]);
+  disk.seekp(section_offset[0]);
   const char* magic = "Very Simple File System";
   disk << magic;
   //disk.write(magic, 1024);
