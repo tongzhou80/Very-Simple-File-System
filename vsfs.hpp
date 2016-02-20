@@ -16,9 +16,9 @@ public:
   int size;
   int capacity; // track how many bytes left in current 4k block
   int addr_0;
+  int addr_1;
 
   /* to do */
-  int addr_1;
   int addr_2;
   int mode;
   int uid;
@@ -72,6 +72,7 @@ private:
   void calcGlobalOffset();
   void resetImap();
   void resetDmap();
+  void resetDisk();
   int allocBit(int start, int len);
   int allocInodeBlock();
   int allocDataBlock();
@@ -87,6 +88,7 @@ private:
   int loadDirTable();
   int incrementDirFileCnt();
   int addFileToDir(int dir, int fd, char* name);
+  int addEntryToDir(int dir, DirEntry* en);
   int getIntAt(int addr);
   int putIntAt(int addr, int value);
   int writeData(Inode* node, int f_offset, const void * source, int len);
@@ -114,7 +116,7 @@ public:
 
   /* commands implementations */
   int mkfs();
-  int mkdir();
+  int mkdir(char* name);
   int open(char* filename, char* flag);
   int close(int fd);
   int seek(int fd, int offset);
