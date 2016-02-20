@@ -79,17 +79,21 @@ private:
   int getDataOffset(int id);
   int writeInode(int i_id, Inode * newnode);
   Inode * readInode(int i_id);
+  int allocAddr_1(Inode * node);
+  int allocLevel1Block(Inode * node);
+
+  int newDir();
   int createFile();
   int loadDirTable();
   int incrementDirFileCnt();
   int addFileToDir(int dir, int fd, char* name);
   int getIntAt(int addr);
   int putIntAt(int addr, int value);
-  int writeData(int i_id, int f_offset, const void * source, int len);
-  int readData(int i_id, int f_offset, void * buffer, int len);
+  int writeData(Inode* node, int f_offset, const void * source, int len);
+  int readData(Inode* node, int f_offset, void * buffer, int len);
   int registerFD(int fd, int i_id);
   int releaseFD(int fd);
-  int calcDiskAddr(int i_id, int f_offset);
+  int calcDiskAddr(Inode* node, int f_offset);
   int getBlockInnerOffset(int offset);
   void printConfig();
   

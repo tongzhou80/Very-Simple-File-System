@@ -54,17 +54,18 @@ VSFileSystem::VSFileSystem() {
   
   /* debug */
   //root = mkfs(); // call mkfs will wipe and format the disk
-  open("foo", "w");
-  open("bar", "w");
-  write(3, "good restraut!");
-  cat("foo");
-  seek(3, 4);
-  write(3, "hello");
-  seek(3, 0);
-  read(3, 12);
-  close(3);
-  close(3);
-  ls();
+
+  // open("foo", "w");
+  // open("bar", "w");
+  // write(3, "good restraut!");
+  // cat("foo");
+  // seek(3, 4);
+  // write(3, "hello");
+  // seek(3, 0);
+  // read(3, 12);
+  // close(3);
+  // close(3);
+  // ls();
 }
 
 
@@ -332,6 +333,7 @@ int VSFileSystem::close(int fd) {
 }
 
 int VSFileSystem::seek(int fd, int offset) {
+  pp("===== seek", fd, offset, "=====");
   std::map<int, std::pair<int, int> >::iterator iter;
   iter = fd_map.find(fd);
   if (iter == fd_map.end()) {
@@ -346,7 +348,7 @@ int VSFileSystem::seek(int fd, int offset) {
 }
 
 int VSFileSystem::write(int fd, char* str) {
-  pp("===== write ======");
+  pp("===== write", fd, str, "======");
   
   std::map<int, std::pair<int, int> >::iterator iter;
   iter = fd_map.find(fd);
@@ -359,12 +361,28 @@ int VSFileSystem::write(int fd, char* str) {
     int f_offset = (iter->second).second;
     pp("file offset:", f_offset);
     pp("write string...");
-    writeData(i_id, f_offset, str, std::strlen(str));
 
-    
+    Inode* node = readInode(i_id);
+    int str_len = std::strlen(str);
+    writeData(node, f_offset, str, str_len);
+
+    /* update file size */
+    if (f_offset + str_len <= node->size) {
+      /* don't update size */
+    }
+    else {
+      node->size = f_offset + str_len;
+      pp("update file size to", node->size);
+    }
+  
+    writeInode(i_id, node);
+
+
     /* update file offset */
-    (iter->second).second = std::strlen(str);
+    (iter->second).second += str_len;
     pp("update file offset to:", (iter->second).second);
+
+    delete node;
   }
 }
 
@@ -377,8 +395,7 @@ int VSFileSystem::allocAddr_1(Inode * node) {
   node->addr_1 = getDataOffset(d_id);
 }
 
-int VSFileSystem::calcDiskAddr(int i_id, int f_offset) {
-  Inode * node = readInode(i_id);
+int VSFileSystem::calcDiskAddr(Inode * node, int f_offset) {
   int data_block_start = node->addr_0;
   int disk_addr;
 
@@ -417,8 +434,8 @@ int VSFileSystem::getBlockInnerOffset(int offset) {
 }
 
 /* write to data block of inode i_id */
-int VSFileSystem::writeData(int i_id, int f_offset, const void * source, int len) {
-  Inode * node = readInode(i_id);
+int VSFileSystem::writeData(Inode* node, int f_offset, const void * source, int len) {
+  int dsize = VSFileSystem::dsize;
   int capacity = node->capacity;
   pp("read node capacity...", capacity);
   int block_left = capacity - f_offset;
@@ -429,52 +446,39 @@ int VSFileSystem::writeData(int i_id, int f_offset, const void * source, int len
     int block_inner_offset = getBlockInnerOffset(f_offset);
     pp("block_inner_offset", block_inner_offset);
 
-    int disk_addr = calcDiskAddr(i_id, f_offset);
+    int disk_addr = calcDiskAddr(node, f_offset);
     /* if involves only current block */
-    if (block_inner_offset + len <= VSFileSystem::dsize) {
+    if (block_inner_offset + len <= dsize) {
       pp("write", len, "bytes to address", disk_addr);
       dwrite(disk_addr, source, len);
     }
+    /* if need new data block */
     else {
-      int write_len = VSFileSystem::dsize - block_inner_offset;
+      int write_len = dsize - block_inner_offset;
       pp("write", write_len, "bytes to address", disk_addr);
       dwrite(disk_addr, source, write_len);
-      writeData(i_id, f_offset+write_len, source+write_len, len-write_len);
+      writeData(node, f_offset+write_len, ((char*)source)+write_len, len-write_len);
     }
 
-    
-    // if (len <= block_left) {
-    //   int disk_addr = calcDiskAddr(i_id, f_offset);
-    //   pp("write", len, "bytes to address", disk_addr);
-    //   dwrite(disk_addr, source, len);
-    //   pp("update file size...");
-    //   node->size += len;
-    // }
   }
   else if (f_offset == capacity) {
     /* allocate new block */
     /* check if use level 1 address */
     if (node->addr_1 == -1) {
+      pp("init address level 1...");
       allocAddr_1(node);
     }
     /* check if use level 1 address */
     /* to do */
 
+    pp("allocat new data block in level 1 space...");
     allocLevel1Block(node);
-    writeData(i_id, f_offset, source, len);
+    pp("update node capacity to", node->capacity+dsize);
+    node->capacity += dsize;
+
+    writeData(node, f_offset, source, len);
   }
 
-  /* update file size */
-  if (f_offset + len <= node->size) {
-    /* don't update size */
-  }
-  else {
-    node->size = f_offset + len;
-    pp("update file size to", node->size);
-  }
-  
-  writeInode(i_id, node);
-  delete node;
 }
 
 int VSFileSystem::allocLevel1Block(Inode * node) {
@@ -484,8 +488,6 @@ int VSFileSystem::allocLevel1Block(Inode * node) {
   int d_id = allocDataBlock();
   putIntAt(new_block_pter, getDataOffset(d_id));
 
-  pp("update node capacity...");
-  node->capacity += dsize;
   return 0;
 }
 
@@ -503,15 +505,20 @@ int VSFileSystem::read(int fd, int size) {
   Inode* node = readInode(i_id);
 
   int len = size;
-  if (f_offset + size > node->size) {
-    len = node->size - f_offset;
-    std::cout << "read " << len << " reaches end of file" << std::endl;
-  }
+  // if (f_offset + size > node->size) {
+  //   len = node->size - f_offset;
+  //   std::cout << "read " << len << " reaches end of file" << std::endl;
+  // }
 
   char* buffer = new char[len+1];
-  readData(i_id, f_offset, buffer, len);
+  readData(node, f_offset, buffer, len);
   buffer[len] = '\0';
-  std::cout << buffer << std::endl;
+  std::cout << buffer[4096] << std::endl;
+
+  /* update file offset */
+  (iter->second).second += size;
+  pp("update file offset to:", (iter->second).second);
+
   delete[] buffer;
   delete node;
 }
@@ -531,7 +538,7 @@ int VSFileSystem::cat(char* filename) {
     pp("file size:", node->size);
 
     char* content = new char[file_size+1];
-    readData(i_id, 0, content, file_size);
+    readData(node, 0, content, file_size);
     content[file_size] = '\0';
     std::cout << content << std::endl;
     delete[] content;
@@ -539,26 +546,33 @@ int VSFileSystem::cat(char* filename) {
   }
 }
 
-int VSFileSystem::readData(int i_id, int f_offset, void * buffer, int len) {
-  /* no seek boundry check */
-  /* readData should be low-level */ 
-  Inode * node = readInode(i_id);
+int VSFileSystem::readData(Inode* node, int f_offset, void * buffer, int len) {
+  /* boundry check */
+  if (f_offset >= node->size) {
+    std::cerr << "file offset is greater than file size. read nothing." << std::endl;
+    return 0;
+  }
 
+  int dsize = VSFileSystem::dsize;
   int block_inner_offset = getBlockInnerOffset(f_offset);
   pp("block_inner_offset", block_inner_offset);
+  int disk_addr = calcDiskAddr(node, f_offset);
 
+  
   /* if involves only current block */
-  if (block_inner_offset + len <= VSFileSystem::dsize) {
-    int disk_addr = calcDiskAddr(i_id, f_offset);
+  if (block_inner_offset + len <= dsize) {  
+    /* if reading reaches the end of file, stop */
+    len = (len > node->size - f_offset) ? (node->size - f_offset) : len;
     pp("read", len, "bytes from address", disk_addr);
     dread(disk_addr, buffer, len);
   }
+  /* if read more than one data block */
   else {
-      
+    pp("read to next data block");
+    int read_len = dsize - block_inner_offset;
+    dread(disk_addr, buffer, read_len);
+    readData(node, f_offset+read_len, ((char*)buffer)+read_len, len-read_len);
   }
-
-
-  delete node;
 
 }
 
@@ -606,7 +620,11 @@ Inode * VSFileSystem::readInode(int i_id) {
   return node;
 }
 
-int VSFileSystem::mkdir() {
+int VSFileSystem::mkdir(char * name) {
+  int i_id = newDir();
+}
+
+int VSFileSystem::newDir() {
   int i_id = allocBit(section_offset[1], inum);
   if (i_id == -1) {
     std::cerr << "fail to allocate inode, inode region full.\n";
@@ -749,10 +767,30 @@ int VSFileSystem::allocInodeBlock() {
   return i_id;
 }
 
-
-void VSFileSystem::prompt() {
+int VSFileSystem::allocDataBlock() {
   int d_id = allocBit(section_offset[2], dnum);
   return d_id;
+}
+
+
+void VSFileSystem::prompt() {
+  const int MAX_LEN = 1024;
+  char* input = new char[MAX_LEN];
+  char* op;
+
+  while(1) {
+    std::cout << "$ ";
+    std::cin.getline(input, MAX_LEN);
+    op = std::strtok(input, " \n");
+    if (std::strcmp(op, "mkfs") == 0) {
+      mkfs();
+    }
+    else {
+      std::cout << "command not supported\n";
+    }
+      
+  }
+  
 }
 
 int VSFileSystem::execCmd(std::string cmd) {
@@ -767,7 +805,7 @@ int VSFileSystem::mkfs() {
   initSuper();
   resetImap();
   resetDmap();
-  int root_node_id = mkdir();
+  int root_node_id = newDir();
   return root_node_id;
 }
 
@@ -831,9 +869,37 @@ int VSFileSystem::createVirtualDisk() {
 }
 
 
-int main() {
+int testReadWrite() {
   VSFileSystem* fs = new VSFileSystem();
+  fs->open("foo", "w");
+  fs->open("bar", "w");
+  fs->write(3, "good restraut!");
+  fs->cat("foo");
+  fs->seek(3, 4);
+  fs->write(3, "hello");
+  fs->seek(3, 0);
+  fs->read(3, 12);
+  fs->close(3);
+  fs->close(3);
+  fs->ls();
+
   //fs->prompt();
-  //delete fs;
+  delete fs;
   return 0;
+
+}
+
+int testLevel1() {
+  VSFileSystem* fs = new VSFileSystem();
+  fs->open("foo", "w");
+  fs->seek(3, 4*1024);
+  fs->write(3, "new block");
+  fs->seek(3, 0);
+  fs->read(3, 4*1024+10);
+  delete fs;
+}
+
+
+int main() {
+  testLevel1();
 }

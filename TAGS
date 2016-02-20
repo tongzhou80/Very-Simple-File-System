@@ -26,7 +26,7 @@ void foo(51,909
 void bar(73,1381
 int main(81,1518
 
-vsfs.cpp,1936
+vsfs.cpp,2067
 void pp(21,320
 template <typename T,25,367
 void pp(26,408
@@ -34,51 +34,54 @@ int VSFileSystem::isize 32,522
 int VSFileSystem::dsize 33,553
 VSFileSystem::VSFileSystem(35,588
 Inode::Inode(71,1426
-std::ostream& operator << operator <<90,1873
-std::istream& operator >> operator >>96,2003
-std::ostream& operator << operator <<101,2118
-std::istream& operator >> operator >>110,2391
-DirEntry::DirEntry(125,2782
-std::size_t DirEntry::getSize(133,2952
-void VSFileSystem::printConfig(139,3048
-VSFileSystem::~VSFileSystem(147,3374
-int VSFileSystem::createFile(152,3456
-int VSFileSystem::registerFD(180,4273
-int VSFileSystem::releaseFD(187,4495
-int VSFileSystem::open(209,4941
-int VSFileSystem::ls(317,7349
-int VSFileSystem::close(325,7561
-int VSFileSystem::seek(331,7661
-int VSFileSystem::write(345,7971
-int VSFileSystem::calcDiskAddr(368,8570
-int VSFileSystem::dwrite(397,9275
-int VSFileSystem::getBlockInnerOffset(403,9415
-int VSFileSystem::writeData(408,9549
-int VSFileSystem::read(459,10883
-int VSFileSystem::cat(486,11575
-int VSFileSystem::readData(509,12210
-int VSFileSystem::dread(532,12777
-int VSFileSystem::addFileToDir(537,12893
-int VSFileSystem::incrementDirFileCnt(563,13667
-Inode * VSFileSystem::readInode(567,13715
-int VSFileSystem::mkdir(576,13925
-int VSFileSystem::getIntAt(633,15362
-int VSFileSystem::putIntAt(640,15500
-int VSFileSystem::loadDirTable(646,15633
-int VSFileSystem::writeInode(673,16445
-int VSFileSystem::getInodeOffset(683,16668
-int VSFileSystem::getDataOffset(687,16753
-int VSFileSystem::allocBit(696,16926
-void VSFileSystem::prompt(714,17301
-int VSFileSystem::execCmd(732,17649
-int VSFileSystem::mkfs(738,17730
-void VSFileSystem::loadDisk(749,17938
-void VSFileSystem::calcGlobalOffset(753,17997
-void VSFileSystem::resetImap(769,18369
-void VSFileSystem::resetDmap(778,18560
-void VSFileSystem::initSuper(787,18751
-int VSFileSystem::createVirtualDisk(795,18929
-int main(808,19279
+std::ostream& operator << operator <<92,1916
+std::istream& operator >> operator >>98,2046
+std::ostream& operator << operator <<103,2161
+std::istream& operator >> operator >>112,2434
+DirEntry::DirEntry(127,2825
+std::size_t DirEntry::getSize(135,2995
+void VSFileSystem::printConfig(141,3091
+VSFileSystem::~VSFileSystem(149,3417
+int VSFileSystem::createFile(154,3499
+int VSFileSystem::registerFD(182,4287
+int VSFileSystem::releaseFD(189,4509
+int VSFileSystem::open(211,4955
+int VSFileSystem::ls(319,7363
+int VSFileSystem::close(328,7599
+int VSFileSystem::seek(334,7699
+int VSFileSystem::write(348,8009
+int VSFileSystem::allocAddr_1(371,8608
+int VSFileSystem::calcDiskAddr(380,8812
+int VSFileSystem::dwrite(409,9517
+int VSFileSystem::getBlockInnerOffset(415,9657
+int VSFileSystem::writeData(420,9791
+int VSFileSystem::allocLevel1Block(480,11559
+int VSFileSystem::read(492,11936
+int VSFileSystem::cat(519,12628
+int VSFileSystem::readData(542,13263
+int VSFileSystem::dread(565,13830
+int VSFileSystem::addFileToDir(570,13946
+int VSFileSystem::incrementDirFileCnt(596,14720
+Inode * VSFileSystem::readInode(600,14768
+int VSFileSystem::mkdir(609,14978
+int VSFileSystem::getIntAt(666,16419
+int VSFileSystem::putIntAt(673,16557
+int VSFileSystem::loadDirTable(679,16690
+int VSFileSystem::writeInode(706,17502
+int VSFileSystem::getInodeOffset(716,17725
+int VSFileSystem::getDataOffset(720,17812
+int VSFileSystem::allocBit(729,17987
+int VSFileSystem::allocInodeBlock(747,18362
+void VSFileSystem::prompt(752,18466
+int VSFileSystem::execCmd(778,18931
+int VSFileSystem::mkfs(784,19012
+void VSFileSystem::loadDisk(795,19220
+void VSFileSystem::calcGlobalOffset(799,19279
+void VSFileSystem::resetImap(815,19671
+void VSFileSystem::resetDmap(824,19868
+void VSFileSystem::initSuper(833,20065
+int VSFileSystem::createVirtualDisk(841,20245
+int main(854,20595
 
 vsfs.hpp,88
 #define VSFS_H3,16
