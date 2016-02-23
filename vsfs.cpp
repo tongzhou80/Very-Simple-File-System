@@ -118,6 +118,11 @@ std::istream& operator >> (std::istream& fs, DirEntry* en) {
   int buffer;
   fs.read((char*)&buffer, sizeof(buffer));
   en->node_index = buffer;
+
+  if (en->node_index == -1) {
+
+  }
+  
   fs.read((char*)&buffer, sizeof(buffer));
   en->nlen = buffer;
 
@@ -609,14 +614,6 @@ int VSFileSystem::addEntryToDir(int dir, DirEntry* en) {
   writeData(dir_node, dir_node->size, buffer, buffer_size);
 
 
-
-
-
-  
-  // int write_p = dir_node->addr_0 + dir_node->size;
-  // disk.seekp(write_p);
-  // disk << en;
-
   /* update file size */
   dir_node->size += buffer_size;
   writeInode(dir, dir_node);
@@ -632,32 +629,6 @@ int VSFileSystem::addEntryToDir(int dir, DirEntry* en) {
   cout << "dir updated size: " << dir_node->size << endl;
   cout << "dir's now file number: " << f_cnt+1 << endl;
   delete dir_node;  
-}
-
-int VSFileSystem::addFileToDir(int dir, int fd, char* name) {
-  Inode * dir_node = readInode(dir);
-  std::map<int, std::pair<int, int> >::iterator iter;
-  iter = fd_map.find(fd);
-  int f_inode_id = (iter->second).first;
-  DirEntry * e = new DirEntry(f_inode_id, std::strlen(name), name);
-
-  int write_p = dir_node->addr_0 + dir_node->size;
-  //cout << "write to place " << write_p << endl;
-  disk.seekp(write_p);
-  disk << e;
-
-  /* update file size */
-  dir_node->size += e->getSize();
-  writeInode(dir, dir_node);
-
-  /* update file counter */
-  int f_cnt = getIntAt(dir_node->addr_0);
-  putIntAt(dir_node->addr_0, f_cnt+1);
-
-  cout << "dir updated size: " << dir_node->size << endl;
-  cout << "dir's now file number: " << f_cnt+1 << endl;
-  delete e;
-  delete dir_node;
 }
 
 int VSFileSystem::incrementDirFileCnt() {
@@ -762,10 +733,6 @@ int VSFileSystem::loadDirTable() {
   cout << "get file counter..." << endl;
   /* get file counter */
   int file_cnt = getIntAt(dir_start);
-  // disk.seekg(dir_start);
-  // char buffer[sizeof(int)];
-  // disk.read(buffer, (int)sizeof(int));
-  // int file_cnt = *((int*)buffer);
   cout << "file counter:" << " " << file_cnt << "\n";
 
   DirEntry * en = new DirEntry(0, 0, "");

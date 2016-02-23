@@ -87,7 +87,6 @@ private:
   int createFile();
   int loadDirTable();
   int incrementDirFileCnt();
-  int addFileToDir(int dir, int fd, char* name);
   int addEntryToDir(int dir, DirEntry* en);
   int getIntAt(int addr);
   int putIntAt(int addr, int value);
