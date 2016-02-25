@@ -91,6 +91,9 @@ private:
   int loadDirTable();
   int incrementDirFileCnt();
   int addEntryToDir(int dir, DirEntry* en);
+  int getDirFileNum(Inode* dir_node);
+  bool checkDirEmpty(Inode* dir_node);
+
   int getIntAt(int addr);
   int putIntAt(int addr, int value);
   int writeData(Inode* node, int f_offset, const void * source, int len);

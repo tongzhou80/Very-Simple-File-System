@@ -1,5 +1,6 @@
 #include <fstream>
 #include <cstdlib>
+#include <cassert>
 #include <cstring>
 #include <sstream>
 #include <iostream>
@@ -645,6 +646,29 @@ int VSFileSystem::addEntryToDir(int dir, DirEntry* en) {
   delete dir_node;  
 }
 
+int VSFileSystem::getDirFileNum(Inode* dir_node) {
+  Address saved_tellg = disk.tellg();
+  int num = getIntAt(dir_node->addr_0);
+  disk.seekg(saved_tellg);
+  return num;
+}
+
+bool VSFileSystem::checkDirEmpty(Inode* dir_node) {
+  assert(dir_node->type == 1);
+  int file_num = getDirFileNum(dir_node);
+  assert(file_num >= 2);
+  pp("file num:", file_num);
+
+  /* if only contains "." and ".." */
+  if (file_num == 2) {
+    return true;
+  }
+  else {
+    return false;
+  }
+}
+
+
 /* general file rm:
    reset its inode block
    reset its data block(maybe more than 1)
@@ -677,7 +701,6 @@ void VSFileSystem::rmDirEntry(int d_id, const char* filename, int f_t) {
     Address saved_tellg = disk.tellg();
     Inode* entry_node = readInode(en_id);
     disk.seekg(saved_tellg);
-    pp("p:", disk.tellg());
     disk >> en;
     pp(en->node_index);
     pp(en->nlen);
@@ -685,7 +708,21 @@ void VSFileSystem::rmDirEntry(int d_id, const char* filename, int f_t) {
     pp(entry_node->type);
     pp("current file offset:", ff);
     pp("");
+
+
+    /* if find the file that is to be deleted */
     if (std::strcmp(en->name, filename) == 0) {
+      if (entry_node->type == 1) {
+	if (!checkDirEmpty(entry_node)) {
+	  std::cerr << "directory must be empty." << std::endl;
+	  return;
+	}
+	else {
+	  pp("dir is empty...");
+	}
+      }
+
+      
       pp("delete", filename);
       int buffer = -1;
       pp("set entry inode field to -1");
