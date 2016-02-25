@@ -6,6 +6,8 @@
 #include <string>
 #include <map>
 
+typedef int Address;
+
 class Inode {
 public:
   Inode();
@@ -84,6 +86,7 @@ private:
   int allocLevel1Block(Inode * node);
 
   int newDir();
+  void rmDirEntry(int d_id, const char* filename, int f_type);
   int createFile();
   int loadDirTable();
   int incrementDirFileCnt();
@@ -115,13 +118,14 @@ public:
 
   /* commands implementations */
   int mkfs();
-  int mkdir(char* name);
-  int open(char* filename, char* flag);
+  int mkdir(const char* name);
+  int rmdir(const char* name);
+  int open(const char* filename, const char* flag);
   int close(int fd);
   int seek(int fd, int offset);
   int read(int fd, int size);
-  int write(int fd, char* str);
-  int cat(char* filename);
+  int write(int fd, const char* str);
+  int cat(const char* filename);
   int ls();
 };
 
