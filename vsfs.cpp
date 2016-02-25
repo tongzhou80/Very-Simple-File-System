@@ -673,6 +673,7 @@ bool VSFileSystem::checkDirEmpty(Inode* dir_node) {
    reset its inode block
    reset its data block(maybe more than 1)
    remove its entry in current dir
+   if in current dir, delete entry in pwd_table
 
    if file, delete
    if dir, check if empty and delete
@@ -684,30 +685,41 @@ bool VSFileSystem::checkDirEmpty(Inode* dir_node) {
    f_t: tyoe of the file that is to be deleted
 
  */
+
+void VSFileSystem::rm(const char* name) {
+  rmDirEntry(cwd, name, 1);
+}
+
+int VSFileSystem::rmdir(const char* name) {
+  pp("===== rmdir", name, "=====");
+  rm(name);
+  return 0;
+}
+
+
 void VSFileSystem::rmDirEntry(int d_id, const char* filename, int f_t) {
-  pp("look into dir with node id", d_id);
   Inode * dir = readInode(cwd);
-  int dir_start = dir->addr_0;
-  pp("read from dir content from address", dir_start);
-  cout << "get file counter..." << endl;
   /* get file counter */
-  int file_cnt = getIntAt(dir_start);
+  int file_cnt = getDirFileNum(dir);
   cout << "file counter:" << " " << file_cnt << "\n";
 
   int ff = 0; // file offset of each entry
   DirEntry * en = new DirEntry(0, 0, "");
+  disk.seekg(dir->addr_0 + sizeof(int));
   for (int i = 0; i < file_cnt; i++) {
+    disk >> en;
     int en_id = en->node_index;
+    pp("entry id", en_id);
     Address saved_tellg = disk.tellg();
     Inode* entry_node = readInode(en_id);
     disk.seekg(saved_tellg);
-    disk >> en;
-    pp(en->node_index);
-    pp(en->nlen);
-    pp(en->name);
-    pp(entry_node->type);
-    pp("current file offset:", ff);
-    pp("");
+    
+    // pp(en->node_index);
+    // pp(en->nlen);
+    // pp(en->name);
+    // pp(entry_node->type);
+    // pp("current file offset:", ff);
+    // pp("");
 
 
     /* if find the file that is to be deleted */
@@ -727,19 +739,36 @@ void VSFileSystem::rmDirEntry(int d_id, const char* filename, int f_t) {
       int buffer = -1;
       pp("set entry inode field to -1");
       writeData(dir, ff, &buffer, sizeof(int));
+      delete[] en->name;
+      delete en;
+      return;
     }
 
     ff += en->getSize();
     delete[] en->name; 
-    //delete entry_node;
   }
   delete en;
 
 }
-   
-int VSFileSystem::rmdir(const char* name) {
-  rmDirEntry(cwd, name, 1);
-  return 0;
+
+
+void VSFileSystem::freeBit(Address start_address, int offset) {
+  Address saved_tellp = disk.tellp();
+  char buffer = 1;
+  dwrite(start_address + offset, &buffer, 1);
+  disk.seekp(saved_tellg);
+}
+
+void VSFileSystem::freeInodeBlock(int i_id) {
+  freeBit(section_offset[1], i_id);
+}
+
+void VSFileSystem::freeInodeBlock(int d_id) {
+  freeBit(section_offset[2], i_id);
+}
+
+int VSFileSystem::getInodeIdByOffset() {
+
 }
 
 int VSFileSystem::incrementDirFileCnt() {

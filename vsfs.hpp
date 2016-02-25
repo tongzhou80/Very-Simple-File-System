@@ -130,6 +130,7 @@ public:
   int write(int fd, const char* str);
   int cat(const char* filename);
   int ls();
+  void rm(const char* name);
 };
 
 #endif
