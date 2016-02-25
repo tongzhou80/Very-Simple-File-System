@@ -337,6 +337,10 @@ int VSFileSystem::open(const char* filename, const char* flag) {
   return -1;
 }
 
+void VSFileSystem::cd(const char* dirname) {
+  
+}
+
 int VSFileSystem::ls() {
   pp("===== ls =====");
   std::map<std::string, int>::iterator iter;
@@ -734,11 +738,15 @@ void VSFileSystem::rmDirEntry(int d_id, const char* filename, int f_t) {
 	}
       }
 
-      
+      /* delete its entry in parent dir */
       pp("delete", filename);
       int buffer = -1;
       pp("set entry inode field to -1");
       writeData(dir, ff, &buffer, sizeof(int));
+
+      /* free data block and inode block */
+      freeFile(en_id);
+      
       delete[] en->name;
       delete en;
       return;
@@ -751,25 +759,59 @@ void VSFileSystem::rmDirEntry(int d_id, const char* filename, int f_t) {
 
 }
 
+/* free both its inode block and data block */
+void VSFileSystem::freeFile(int i_id) {
+  /* free data blocks first */
+  Inode* node = readInode(i_id);
+  /* if only use addr_0 */
+  if (node->addr_1 == -1) {
+    int d_id = getDataIdByOffset(node->addr_0);
+    pp("free data id:", d_id);
+    freeDataBlock(d_id);
+  }
+  /* if only use addr_0 and addr_1 */
+  else if (node->addr_2 == -1) {
+    Address level_1_addr = getIntAt(node->addr_1);
+    int level_1_size = node->capacity/dsize - 1;
+    for (int i = 0; i < level_1_size; i++) {
+      Address block_address = level_1_addr + i*sizeof(Address);
+      pp("free data id:", d_id);
+      int d_id = getDataIdByOffset(block_address);
+      freeDataBlock(d_id);
+    }
+  }
+  /* if use addr_0, addr_1 and addr_2 */
+  else {
+    
+  }
+
+  pp("free inode id", i_id);
+  freeInodeBlock(i_id);
+}
 
 void VSFileSystem::freeBit(Address start_address, int offset) {
   Address saved_tellp = disk.tellp();
   char buffer = 1;
   dwrite(start_address + offset, &buffer, 1);
-  disk.seekp(saved_tellg);
+  disk.seekp(saved_tellp);
 }
 
 void VSFileSystem::freeInodeBlock(int i_id) {
   freeBit(section_offset[1], i_id);
 }
 
-void VSFileSystem::freeInodeBlock(int d_id) {
-  freeBit(section_offset[2], i_id);
+void VSFileSystem::freeDataBlock(int d_id) {
+  freeBit(section_offset[2], d_id);
 }
 
-int VSFileSystem::getInodeIdByOffset() {
+// int VSFileSystem::getInodeIdByOffset(Address offset) {
 
+// }
+
+int VSFileSystem::getDataIdByOffset(Address offset) {
+  return (offset - section_offset[4]) / dsize;
 }
+
 
 int VSFileSystem::incrementDirFileCnt() {
   

@@ -68,7 +68,8 @@ private:
   int fd_cnt;
   /* fd: (inode id, file inner pointer) */
   std::map<int, std::pair<int, int> > fd_map;
-  
+
+  /* inode and data block management */
   int createVirtualDisk();
   void initSuper();
   void calcGlobalOffset();
@@ -78,13 +79,19 @@ private:
   int allocBit(int start, int len);
   int allocInodeBlock();
   int allocDataBlock();
+  void freeFile(int i_id);
+  void freeBit(Address start_address, int offset);
+  void freeInodeBlock(int i_id);
+  void freeDataBlock(int d_id);
   int getInodeOffset(int id);
   int getDataOffset(int id);
+  int getDataIdByOffset(Address offset);
   int writeInode(int i_id, Inode * newnode);
   Inode * readInode(int i_id);
   int allocAddr_1(Inode * node);
   int allocLevel1Block(Inode * node);
 
+  /* directory management */
   int newDir();
   void rmDirEntry(int d_id, const char* filename, int f_type);
   int createFile();
@@ -131,6 +138,7 @@ public:
   int cat(const char* filename);
   int ls();
   void rm(const char* name);
+  void cd(const char* dirname);
 };
 
 #endif
