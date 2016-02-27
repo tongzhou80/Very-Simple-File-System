@@ -54,9 +54,9 @@ private:
   int disk_size;
   std::fstream disk;
   std::istream * input_stream;
-  int cwd;
+  int cwd; // current dir's inode id
   int root;
-  /* cwd_table is contains pairs of file name and its fd */
+  /* cwd_table is contains pairs of file name and its inode id */
   std::map<std::string, int> cwd_table;
   int section_offset[6];
   int inum;
@@ -100,6 +100,8 @@ private:
   int addEntryToDir(int dir, DirEntry* en);
   int getDirFileNum(Inode* dir_node);
   bool checkDirEmpty(Inode* dir_node);
+  int findFileInCurDir(const char* filename);
+  void changeCwdTo(int dir_id);
 
   int getIntAt(int addr);
   int putIntAt(int addr, int value);
@@ -130,7 +132,7 @@ public:
   int mkfs();
   int mkdir(const char* name);
   int rmdir(const char* name);
-  int open(const char* filename, const char* flag);
+  void open(const char* filename, const char* flag);
   int close(int fd);
   int seek(int fd, int offset);
   int read(int fd, int size);
@@ -138,7 +140,7 @@ public:
   int cat(const char* filename);
   int ls();
   void rm(const char* name);
-  void cd(const char* dirname);
+  int cd(const char* dirname);
 };
 
 #endif

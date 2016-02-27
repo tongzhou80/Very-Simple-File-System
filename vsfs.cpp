@@ -223,38 +223,188 @@ int VSFileSystem::releaseFD(int fd) {
 
 }
 
-/* to to do */
-/* only suuport current dir now, but designed to support any path */
-int VSFileSystem::open(const char* filename, const char* flag) {
-  // char filename[256];
-  // char flag[2];
-  // input_stream->getline(filename, 256, ' ');
-  // input_stream->getline(flag, 256);
-
+/* only support oepn in current dir */
+/* initial offset: */
+/* open existing file for reading: 0
+   open existing file for writing: end of file
+   open unexisting file for reading: fileNotExist exception
+   open unexisting file for writing: 0
+ */
+void VSFileSystem::open(const char* file_path, const char* flag) {
   pp("===== open", filename, flag, "=====");
-  int FLAG;
+  int cur_cwd = cwd;
+  char* file_dir = ".";
+  char* file_name = file_path;
+  changeCwdTo(file_dir);
 
-  if (std::strcmp(flag, "r") == 0) {
-    FLAG = 0;
+  int f_id = findFileInCurDir(file_name);
+  if (f_id != -1) {
+    if (std::strcmp(flag, "r") == 0) {
+      fd_cnt++;
+      pp("register fd", fd_cnt, "in fd_map");
+      registerFD(fd_cnt, f_id);
+    }
+    else if (std::strcmp(flag, "w") == 0) {
+      /* to do */
+    }
+    else {
+      std::cerr << "unvalid flag\n";
+      return;
+    }
   }
-  else if (std::strcmp(flag, "w") == 0) {
-    FLAG = 1;
-    /* update dir inode size field */
-    /* update data block */
-  }
+
   else {
-    std::cerr << "unvalid flag\n";
-    return -1;
+    if (std::strcmp(flag, "r") == 0) {
+      std::cerr << "file not existed." << std::endl;
+      return;
+    }
+    else if (std::strcmp(flag, "w") == 0) {
+      int nfd = createFile(); // will also register file descriptor
+      addEntryToDir()
+    }
+    else {
+      std::cerr << "unvalid flag\n";
+      return;
+    }
   }
+}
+// /* to to do */
+// /* only suuport current dir now, but designed to support any path */
+// int VSFileSystem::open(const char* filename, const char* flag) {
+//   // char filename[256];
+//   // char flag[2];
+//   // input_stream->getline(filename, 256, ' ');
+//   // input_stream->getline(flag, 256);
 
+//   pp("===== open", filename, flag, "=====");
+//   int FLAG;
+
+//   if (std::strcmp(flag, "r") == 0) {
+//     FLAG = 0;
+//   }
+//   else if (std::strcmp(flag, "w") == 0) {
+//     FLAG = 1;
+//     /* update dir inode size field */
+//     /* update data block */
+//   }
+//   else {
+//     std::cerr << "unvalid flag\n";
+//     return -1;
+//   }
+
+
+//   /* absolute path */
+//   if (filename[0] == '/') {
+//     cwd = root;
+//   }
+
+//   pp(filename);
+  
+//   /* relative path */
+//   int enter_file = cwd;
+//   int enter_dir;
+//   char* newfile_name;
+//   bool fileExist = true;
+//   char * pch;
+//   const char * delim = "/";
+//   std::vector<char*> newfiles;
+//   pch = std::strtok(strdup(filename), delim);
+
+//   while (pch != NULL) {
+//     /* find in current working dir */
+//     cout << "find inode of " << pch << endl;
+//     /* load dir table */
+//     /* to do */
+    
+    
+//     std::map<std::string, int>::iterator iter = cwd_table.find(std::string(pch));
+//     if (iter != cwd_table.end()) {
+//       enter_file = iter->second;
+//     }
+//     else {
+//       fileExist = false;
+//       if (FLAG == 0) {
+// 	std::cerr << "no such file.\n";
+// 	return -1;
+//       }
+//       else if (FLAG == 1) {
+// 	newfiles.push_back(pch);
+//       }
+      
+//     }
+//     pch = std::strtok(NULL, delim);
+//   }
+
+//   if (fileExist) {
+//     if (FLAG == 0) {
+//       cout << "read: open file node " << enter_file << endl;      
+//     }
+//     else if (FLAG == 1) {
+//       cout << "write: open file node " << enter_file << endl;
+//     }
+//     else {
+//       /* pass */
+//     }
+    
+//     fd_cnt++;
+//     cout << "register fd " << fd_cnt << " in fd map" << endl;
+//     registerFD(fd_cnt, enter_file);
+//     std::cout << "SUCCESS, fd = " << fd_cnt << std::endl;
+//     return fd_cnt;
+//   }
+//   /* if file not exist, create new file */
+//   else {
+//     if (newfiles.size() > 1) {
+//     	std::cerr << "dir not exist, please make dir first.\n";
+//     	return -1;
+//     }
+//     else {
+//     	/* pass */
+//     }
+    
+//     enter_dir = enter_file;
+//     newfile_name = newfiles[0];
+//     cout << "create new file " << newfile_name << " in inode(dir) " << enter_dir << endl;
+   
+//     int nfd = createFile();
+//     std::map<int, std::pair<int, int> >::iterator iter;
+//     iter = fd_map.find(nfd);
+//     int f_inode_id = (iter->second).first;
+//     DirEntry * en = new DirEntry(f_inode_id, std::strlen(newfile_name), newfile_name);
+
+//     cout << "update dir data content..." << endl;
+//     addEntryToDir(cwd, en);
+//     delete en;
+//     std::cout << "SUCCESS, fd = " << fd_cnt << std::endl;
+//     return nfd;
+//   }
+
+//   return -1;
+// }
+
+int VSFileSystem::findFileInCurDir(const char* filename) {      
+  std::map<std::string, int>::iterator iter = cwd_table.find(std::string(filename));
+  if (iter != cwd_table.end()) {
+    return iter->second;
+  }
+  return -1;
+}
+
+/* change cwd and load dir table */
+void VSFileSystem::changeCwdTo(int dir_id) {
+  cwd = dir_id;
+  loadDirTable();
+}
+
+int VSFileSystem::cd(const char* dirname) {
+  pp("===== cd", dirname, "=====");
 
   /* absolute path */
-  if (filename[0] == '/') {
-    cwd = root;
+  if (dirname[0] == '/') {
+    changeCwdTo(root);
+    pp("change dir to root");
   }
 
-  pp(filename);
-  
   /* relative path */
   int enter_file = cwd;
   int enter_dir;
@@ -263,82 +413,24 @@ int VSFileSystem::open(const char* filename, const char* flag) {
   char * pch;
   const char * delim = "/";
   std::vector<char*> newfiles;
-  pch = std::strtok(strdup(filename), delim);
+  pch = std::strtok(strdup(dirname), delim);
 
   while (pch != NULL) {
     /* find in current working dir */
     cout << "find inode of " << pch << endl;
     /* load dir table */
     /* to do */
-    
-    
-    std::map<std::string, int>::iterator iter = cwd_table.find(std::string(pch));
-    if (iter != cwd_table.end()) {
-      enter_file = iter->second;
+    int file_id = findFileInCurDir(pch);
+    if (file_id == -1) {
+      std::cerr << "file" << pch << "not found." << std::endl;
+      return -1;
     }
-    else {
-      fileExist = false;
-      if (FLAG == 0) {
-	std::cerr << "no such file.\n";
-	return -1;
-      }
-      else if (FLAG == 1) {
-	newfiles.push_back(pch);
-      }
-      
-    }
+    
+    pp("change dir to inode", file_id);
+    changeCwdTo(file_id);
     pch = std::strtok(NULL, delim);
   }
-
-  if (fileExist) {
-    if (FLAG == 0) {
-      cout << "read: open file node " << enter_file << endl;      
-    }
-    else if (FLAG == 1) {
-      cout << "write: open file node " << enter_file << endl;
-    }
-    else {
-      /* pass */
-    }
-    
-    fd_cnt++;
-    cout << "register fd " << fd_cnt << " in fd map" << endl;
-    registerFD(fd_cnt, enter_file);
-    std::cout << "SUCCESS, fd = " << fd_cnt << std::endl;
-    return fd_cnt;
-  }
-  /* if file not exist, create new file */
-  else {
-    if (newfiles.size() > 1) {
-    	std::cerr << "dir not exist, please make dir first.\n";
-    	return -1;
-    }
-    else {
-    	/* pass */
-    }
-    
-    enter_dir = enter_file;
-    newfile_name = newfiles[0];
-    cout << "create new file " << newfile_name << " in inode(dir) " << enter_dir << endl;
-   
-    int nfd = createFile();
-    std::map<int, std::pair<int, int> >::iterator iter;
-    iter = fd_map.find(nfd);
-    int f_inode_id = (iter->second).first;
-    DirEntry * en = new DirEntry(f_inode_id, std::strlen(newfile_name), newfile_name);
-
-    cout << "update dir data content..." << endl;
-    addEntryToDir(cwd, en);
-    delete en;
-    std::cout << "SUCCESS, fd = " << fd_cnt << std::endl;
-    return nfd;
-  }
-
-  return -1;
-}
-
-void VSFileSystem::cd(const char* dirname) {
-  
+  return 0;
 }
 
 int VSFileSystem::ls() {
@@ -557,10 +649,10 @@ int VSFileSystem::read(int fd, int size) {
   delete node;
 }
 
-int VSFileSystem::cat(const char* filename) {
+int VSFileSystem::cat(const char* dirname) {
   pp("===== cat =====");
   pp("lookup working dir table...");
-  std::map<std::string, int>::iterator iter = cwd_table.find(std::string(filename));
+  std::map<std::string, int>::iterator iter = cwd_table.find(std::string(dirname));
   if (iter == cwd_table.end()) {
     std::cerr << "no such file.\n";
   }
@@ -621,6 +713,9 @@ int VSFileSystem::dread(int dest, void * buffer, int len) {
 }
 
 int VSFileSystem::addEntryToDir(int dir, DirEntry* en) {
+  
+
+  
   /* treat dir entry as just a block of memory and write it to disk */ 
   Inode * dir_node = readInode(dir);
   int buffer_size = en->getSize();
@@ -775,8 +870,8 @@ void VSFileSystem::freeFile(int i_id) {
     int level_1_size = node->capacity/dsize - 1;
     for (int i = 0; i < level_1_size; i++) {
       Address block_address = level_1_addr + i*sizeof(Address);
-      pp("free data id:", d_id);
       int d_id = getDataIdByOffset(block_address);
+      pp("free data id:", d_id);
       freeDataBlock(d_id);
     }
   }
@@ -862,7 +957,7 @@ int VSFileSystem::newDir() {
   node->addr_0 = data_offset;
 
   DirEntry * e1 = new DirEntry(i_id, 1, ".");
-  DirEntry * e2 = new DirEntry(i_id, 2, "..");
+  DirEntry * e2 = new DirEntry(cwd, 2, "..");
 
   cout << "write dir content..." << endl;
   disk.seekp(data_offset);
@@ -909,7 +1004,9 @@ int VSFileSystem::putIntAt(int addr, int value) {
 }
 
 int VSFileSystem::loadDirTable() {
-  cout << "load current dir table into memory..." << endl;
+  cwd_table.clear();
+  pp("clear cwd_table...");
+  pp("load current dir table into memory...");
   Inode * dir = readInode(cwd);
   int dir_start = dir->addr_0;
   pp("read from address", dir_start);
@@ -1107,6 +1204,22 @@ int testReadWrite() {
 
 }
 
+void testcd() {
+  VSFileSystem* fs = new VSFileSystem();
+  fs->mkdir("dir1");
+  fs->mkdir("dir2");
+  fs->cd("dir1");
+  fs->open("f1", "w");
+  fs->cd("..");
+  fs->open("f2", "w");
+  fs->cd("dir2");
+  fs->ls();
+  fs->mkdir("dir3");
+  fs->cd("/dir1");
+  fs->ls();
+  delete fs;
+}
+
 int testLevel1() {
   VSFileSystem* fs = new VSFileSystem();
   fs->open("foo", "w");
@@ -1119,6 +1232,7 @@ int testLevel1() {
 
 
 int main() {
-  testReadWrite();
+  testcd();
+  //testReadWrite();
   //testLevel1();
 }
