@@ -97,7 +97,8 @@ private:
   int createFile();
   int loadDirTable();
   int incrementDirFileCnt();
-  int addEntryToDir(int dir, DirEntry* en);
+  int addEntryToDir(int f_id, const char* filename, int dir);
+  DirEntry* readEntry(Inode * dir, int f_offset);
   int getDirFileNum(Inode* dir_node);
   bool checkDirEmpty(Inode* dir_node);
   int findFileInCurDir(const char* filename);
@@ -107,7 +108,7 @@ private:
   int putIntAt(int addr, int value);
   int writeData(Inode* node, int f_offset, const void * source, int len);
   int readData(Inode* node, int f_offset, void * buffer, int len);
-  int registerFD(int fd, int i_id);
+  int registerFD(int i_id);
   int releaseFD(int fd);
   int calcDiskAddr(Inode* node, int f_offset);
   int getBlockInnerOffset(int offset);
