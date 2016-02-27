@@ -45,7 +45,8 @@ void testWrite() {
 void time() {
   time_t rawtime = std::time(0);
   struct tm * timeinfo = std::localtime(&rawtime);
-  std::cout << std::asctime(timeinfo);
+  std::cout << "XXX" << std::asctime(timeinfo) << "XXX";
+  cout << strlen(asctime(timeinfo));
 }
 
 void foo() {
@@ -82,6 +83,7 @@ int main() {
   // char * p = "hh";
   // p[0] = 'a'; // undefined
   //foo();
-  char a[4] = "123";
-  cout <<a;
+  time();
+  char * a = "123";
+  cout << strlen(a);
 }

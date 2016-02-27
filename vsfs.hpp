@@ -19,6 +19,7 @@ public:
   int capacity; // track how many bytes left in current 4k block
   int addr_0;
   int addr_1;
+  char date[25]; // length of asctime() result is 25
 
   /* to do */
   int addr_2;
@@ -90,7 +91,8 @@ private:
   Inode * readInode(int i_id);
   int allocAddr_1(Inode * node);
   int allocLevel1Block(Inode * node);
-
+  char* getCurrentTime();
+  
   /* directory management */
   int newDir();
   void rmDirEntry(int d_id, const char* filename, int f_type);
@@ -101,6 +103,7 @@ private:
   DirEntry* readEntry(Inode * dir, int f_offset);
   int getDirFileNum(Inode* dir_node);
   bool checkDirEmpty(Inode* dir_node);
+  bool checkEntryExist(Inode* dir, int offset);
   int findFileInCurDir(const char* filename);
   void changeCwdTo(int dir_id);
 
