@@ -97,7 +97,8 @@ private:
   int newDir();
   void rmDirEntry(int d_id, const char* filename, int f_type);
   int createFile();
-  int loadDirTable();
+  int loadCwdTable();
+  void loadDirTable(int dir_id, std::map<std::string, int>& dir_table); 
   int incrementDirFileCnt();
   int addEntryToDir(int f_id, const char* filename, int dir);
   DirEntry* readEntry(Inode * dir, int f_offset);
@@ -106,6 +107,9 @@ private:
   bool checkEntryExist(Inode* dir, int offset);
   int findFileInCurDir(const char* filename);
   void changeCwdTo(int dir_id);
+  void tree_inner(int dir, int depth);
+  char* formatRelativePath(char* path);
+  char* parsePath(char* & file_path);
 
   int getIntAt(int addr);
   int putIntAt(int addr, int value);
@@ -116,6 +120,9 @@ private:
   int calcDiskAddr(Inode* node, int f_offset);
   int getBlockInnerOffset(int offset);
   void printConfig();
+
+  /* shell */
+  void parseCmd(char* op, char* rest);
   
   /* virtual disk I/O */
   int dwrite(int dest, const void * source, int len);
@@ -136,15 +143,18 @@ public:
   int mkfs();
   int mkdir(const char* name);
   int rmdir(const char* name);
-  void open(const char* filename, const char* flag);
+  int open(const char* filename, const char* flag);
   int close(int fd);
   int seek(int fd, int offset);
   int read(int fd, int size);
   int write(int fd, const char* str);
   int cat(const char* filename);
   int ls();
+  void tree();
   void rm(const char* name);
   int cd(const char* dirname);
+  void import(const char* source, const char* dest);
+  void export_(const char* source, const char* dest);
 };
 
 #endif

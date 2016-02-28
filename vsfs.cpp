@@ -1,4 +1,5 @@
 #include <fstream>
+#include <streambuf>
 #include <cstdlib>
 #include <ctime>
 #include <cassert>
@@ -30,12 +31,12 @@ using namespace std;
 
 template <typename T>
 void pp(const T& t){
-  std::cout << t << std::endl;  
+  std::cerr << t << std::endl;  
 }
 
 template <typename T, typename ... Args>
 void pp(const T& t, Args ... args){
-  std::cout << t << ' ';
+  std::cerr << t << ' ';
   pp(args...);
 }
 
@@ -64,7 +65,7 @@ VSFileSystem::VSFileSystem() {
   
   /* by default, open root dir */
   cwd = root;
-  loadDirTable();
+  loadCwdTable();
   
   /* debug */
 
@@ -186,7 +187,7 @@ char* VSFileSystem::getCurrentTime() {
 
 /* return a file descriptor */
 int VSFileSystem::createFile() {
-  pp("### create new file...");
+  //pp("### create new file...");
   int i_id = allocInodeBlock();
   if (i_id == -1) {
     std::cerr << "fail to allocate inode, inode region full.\n";
@@ -199,8 +200,6 @@ int VSFileSystem::createFile() {
     return -1;
   }
 
-  cout << "allocate inode id: " << i_id << endl;
-  cout << "allocate data block id: " << d_id << endl;
   Inode * node = new Inode();
   node->addr_0 = getDataOffset(d_id);
   std::strcpy(node->date, getCurrentTime());
@@ -210,7 +209,6 @@ int VSFileSystem::createFile() {
 }
 
 int VSFileSystem::newDir() {
-  pp("### create new dir...");
   int i_id = createFile();
   Inode* node = readInode(i_id);
   node->type = 1;
@@ -306,7 +304,7 @@ int VSFileSystem::releaseFD(int fd) {
    open unexisting file for reading: fileNotExist exception
    open unexisting file for writing: 0
  */
-void VSFileSystem::open(const char* file_path, const char* flag) {
+int VSFileSystem::open(const char* file_path, const char* flag) {
   pp("===== open", file_path, flag, "=====");
   int saved_cwd = cwd;
   /* parse file_path to be two parts, file_dir and file_name */
@@ -325,15 +323,15 @@ void VSFileSystem::open(const char* file_path, const char* flag) {
       /* to do */
     }
     else {
-      std::cerr << "unvalid flag\n";
-      return;
+      std::cerr << "invalid flag\n";
+      return -1;
     }
   }
 
   else {
     if (std::strcmp(flag, "r") == 0) {
       std::cerr << "file not existed." << std::endl;
-      return;
+      return -1;
     }
     else if (std::strcmp(flag, "w") == 0) {
       f_id = createFile(); // will also register file descriptor
@@ -342,11 +340,40 @@ void VSFileSystem::open(const char* file_path, const char* flag) {
       std::cout << "SUCCESS, fd = " << nfd << std::endl;
     }
     else {
-      std::cerr << "unvalid flag\n";
-      return;
+      std::cerr << "invalid flag\n";
+      return -1;
     }
   }
+
+  changeCwdTo(saved_cwd);
+  return fd_cnt;
 }
+
+void VSFileSystem::import(const char* source, const char* dest) {
+  int fd = open(dest, "w");
+  std::ifstream ifs(source);
+  char c[2];
+  c[1] = '\0';
+  while (ifs.get(c[0])) {
+    write(fd, c);
+  }
+  
+}
+
+void VSFileSystem::export_(const char* source, const char* dest) {
+  std::ofstream ofs(dest);
+  streambuf* oldCoutStreamBuf = cout.rdbuf();
+  cout.rdbuf(ofs.rdbuf());
+
+  cat(source);
+
+  // Restore old cout.
+  cout.rdbuf( oldCoutStreamBuf );
+
+  ofs.close();
+}
+
+
 // /* to to do */
 // /* only suuport current dir now, but designed to support any path */
 // int VSFileSystem::open(const char* filename, const char* flag) {
@@ -367,7 +394,7 @@ void VSFileSystem::open(const char* file_path, const char* flag) {
 //     /* update data block */
 //   }
 //   else {
-//     std::cerr << "unvalid flag\n";
+//     std::cerr << "invalid flag\n";
 //     return -1;
 //   }
 
@@ -472,7 +499,7 @@ int VSFileSystem::findFileInCurDir(const char* filename) {
 /* change cwd and load dir table */
 void VSFileSystem::changeCwdTo(int dir_id) {
   cwd = dir_id;
-  loadDirTable();
+  loadCwdTable();
 }
 
 int VSFileSystem::cd(const char* dirname) {
@@ -501,7 +528,7 @@ int VSFileSystem::cd(const char* dirname) {
     /* to do */
     int file_id = findFileInCurDir(pch);
     if (file_id == -1) {
-      std::cerr << "file" << pch << "not found." << std::endl;
+      std::cerr << "error: file " << pch << " not found." << std::endl;
       return -1;
     }
     
@@ -532,6 +559,40 @@ int VSFileSystem::ls() {
 	      << file_name << "\t"
 	      << node->date << "\t"
 	      << node->size << "Kb" << std::endl;
+    delete node;
+  }
+}
+
+void VSFileSystem::tree() {
+  pp("===== tree =====");
+  tree_inner(cwd, 0);
+}
+
+void VSFileSystem::tree_inner(int dir, int depth) {
+  std::map<std::string, int> dir_table;
+  loadDirTable(dir, dir_table);
+  std::map<std::string, int>::iterator iter;
+  Inode * node;
+  for(iter = dir_table.begin(); iter != dir_table.end(); ++iter)
+  {
+    int i_id = iter->second;
+    const char* file_name = iter->first.c_str();
+    if (std::strcmp(file_name, ".") == 0 || std::strcmp(file_name, "..") == 0)
+      continue;
+    node = readInode(i_id);
+    char* type;
+    int size = node->size;
+
+    for(int j = 0; j < depth; j++) {
+      std::cout << "|   ";
+    }
+    
+    std::cout << "|---"
+	      << file_name << std::endl;
+
+    if (node->type == 1) {
+      tree_inner(i_id, depth+1);
+    }
     delete node;
   }
 }
@@ -641,25 +702,28 @@ int VSFileSystem::getBlockInnerOffset(int offset) {
   return offset % VSFileSystem::dsize;
 }
 
+
 /* write to data block of inode i_id */
 int VSFileSystem::writeData(Inode* node, int f_offset, const void * source, int len) {
+#ifdef DEBUG_writeData
   pp("write data...");
+  pp("read node capacity...", capacity);
+#endif
   int dsize = VSFileSystem::dsize;
   int capacity = node->capacity;
-  pp("read node capacity...", capacity);
   int block_left = capacity - f_offset;
 
   /* file offset within capacity */
   if (block_left > 0) {
     /* check if writing involves more than one block */
     int block_inner_offset = getBlockInnerOffset(f_offset);
-#ifdef FS_DEBUG
+#ifdef DEBUG_writeData
     pp("block_inner_offset", block_inner_offset);
 #endif
     int disk_addr = calcDiskAddr(node, f_offset);
     /* if involves only current block */
     if (block_inner_offset + len <= dsize) {
-#ifdef FS_DEBUG
+#ifdef DEBUG_writeData
       pp("write", len, "bytes to address", disk_addr);
 #endif
       dwrite(disk_addr, source, len);
@@ -757,7 +821,6 @@ int VSFileSystem::cat(const char* dirname) {
     for (int i = 0; i < file_size; i++) {
       std::cout << content[i];
     }
-    std::cout << std::endl;
     delete[] content;
     delete node;
   }
@@ -802,8 +865,9 @@ int VSFileSystem::dread(int dest, void * buffer, int len) {
   disk.read((char*)buffer, len);
 }
 
+#define DEBUG_addEntryToDir
 int VSFileSystem::addEntryToDir(int f_id, const char* filename, int dir) {
-  pp("### add entry to dir");
+  
   Inode * dir_node = readInode(dir);
   int nlen = std::strlen(filename);
   writeData(dir_node, dir_node->size, &f_id, sizeof(f_id));
@@ -820,12 +884,15 @@ int VSFileSystem::addEntryToDir(int f_id, const char* filename, int dir) {
   int f_cnt = getIntAt(dir_node->addr_0);
   putIntAt(dir_node->addr_0, f_cnt+1);
 
-  cout << "dir updated size: " << dir_node->size << endl;
-  cout << "dir's now file number: " << f_cnt+1 << endl;
-
   /* update cwd_table */
-  loadDirTable();
-  delete dir_node;  
+  loadCwdTable();
+  delete dir_node;
+
+#ifdef DEBUG_addEntryToDir   
+  pp("add entry to dir...");
+  pp("dir updated size:", dir_node->size);
+  pp("dir's now file number: ", f_cnt+1);
+#endif
 
 }
 // int VSFileSystem::addEntryToDir(int dir, DirEntry* en) {
@@ -851,7 +918,7 @@ int VSFileSystem::addEntryToDir(int f_id, const char* filename, int dir) {
 
 
 //   /* update cwd_table */
-//   loadDirTable();
+//   loadCwdTable();
   
 //   cout << "dir updated size: " << dir_node->size << endl;
 //   cout << "dir's now file number: " << f_cnt+1 << endl;
@@ -967,7 +1034,7 @@ void VSFileSystem::rmDirEntry(int d_id, const char* filename, int f_t) {
       putIntAt(dir->addr_0, f_cnt-1);
       
       /* reload cwd table */
-      loadDirTable();
+      loadCwdTable();
 
       /* free data block and inode block */
       freeFile(en_id);
@@ -1051,13 +1118,67 @@ Inode * VSFileSystem::readInode(int i_id) {
   return node;
 }
 
+char* VSFileSystem::formatRelativePath(char* path) {
+  int path_len = std::strlen(path);
+  char* rel_path = new char[path_len+2];
+  rel_path[0] = '.';
+  rel_path[1] = '/';
+  std::strcpy(rel_path+2, path);
+  return rel_path;
+}
+
+/* after parse, file_path become file_dir and return value is file_name */
+/* file_path may be modified, so use reference */
+char* VSFileSystem::parsePath(char* & file_path) {
+  int slash_cnt = 0;
+  /* first pass */
+  for (int i = 0; i < std::strlen(file_path); i++) {
+    if (file_path[i] == '/') {
+      slash_cnt++;
+    }
+  }
+
+  if (slash_cnt == 0) {
+    char* old = file_path;
+    file_path = formatRelativePath(old);
+    slash_cnt = 1;
+    delete old;
+  }
+  // pp("new path", file_path);
+  // pp("slash_cnt", slash_cnt);
+
+  /* second pass */
+  int slash_p = 0;
+  for (int i = 0; i < std::strlen(file_path); i++) {
+    if (file_path[i] == '/') {
+      slash_p++;
+      if (slash_p == slash_cnt) {
+	file_path[i] = '\0';
+	return file_path+i+1;
+      }
+    }
+  }
+}
+
 int VSFileSystem::mkdir(const char * name) {
   pp("===== mkdir", name, "=====");
+  int saved_cwd = cwd;
+  /* parse file_path to be two parts, file_dir and file_name */
+  char* file_path = strdup(name);
+
+  char* file_name = parsePath(file_path);
+  char* file_dir = file_path;
+  pp("------------dir", file_dir);
+  pp("------------file", file_name);
+  cd(file_dir);
+  
   int i_id = newDir();
   if (i_id == -1) {
     return -1;
   }
-  addEntryToDir(i_id, name, cwd);
+  addEntryToDir(i_id, file_name, cwd);
+
+  changeCwdTo(saved_cwd);
 }
 
 
@@ -1105,25 +1226,34 @@ bool VSFileSystem::checkEntryExist(Inode* dir, int offset) {
   }
 }
 
-int VSFileSystem::loadDirTable() {
+#define DEBUG_loadCwdTable
+
+int VSFileSystem::loadCwdTable() {
+#ifdef DEBUG_loadCwdTable
   pp("### reload dir...");
-  cwd_table.clear();
   pp("clear cwd_table...");
+#endif
+  cwd_table.clear();
   Inode * dir = readInode(cwd);
   int dir_start = dir->addr_0;
-  cout << "get file counter..." << endl;
   /* get file counter */
   int file_cnt = getIntAt(dir_start);
-  cout << "file counter:" << " " << file_cnt << "\n";
-
+#ifdef DEBUG_loadCwdTable
+  pp("file counter:", file_cnt);
+#endif
+  
   DirEntry * en;
   int f_offset_ini = sizeof(int);
   int f_offset = f_offset_ini;
   for (int i = 0; i < file_cnt; i++) {
+#ifdef DEBUG_loadCwdTable
     pp("read entry from file offset:", f_offset);
+#endif
     en = readEntry(dir, f_offset);
     while (en->node_index == -1) {
-      pp("skip one deleted entry... move forward");
+#ifdef DEBUG_loadCwdTable
+    pp("skip one deleted entry... move forward");
+#endif
       f_offset += en->getSize();
       en = readEntry(dir, f_offset);
     }
@@ -1131,8 +1261,49 @@ int VSFileSystem::loadDirTable() {
     f_offset += en->getSize();
     std::pair<std::string, int> file_entry(std::string(en->name), en->node_index);
     cwd_table.insert(file_entry);
-    cout << "insert to table:" << endl;
-    std::cout << en->name << " " << en->node_index << "\n";
+#ifdef DEBUG_loadCwdTable
+    pp("insert into table:", en->name, en->node_index);
+#endif
+  }
+  delete[] en->name; 
+  delete en;
+}
+
+
+void VSFileSystem::loadDirTable(int dir_id, std::map<std::string, int>& dir_table) {
+#ifdef DEBUG_loadDirTable
+  pp("### load inode", dir, "into to table");
+#endif
+  Inode * dir = readInode(dir_id);
+  int dir_start = dir->addr_0;
+  /* get file counter */
+  int file_cnt = getIntAt(dir_start);
+#ifdef DEBUG_loadDirTable
+  pp("file counter:", file_cnt);
+#endif
+  
+  DirEntry * en;
+  int f_offset_ini = sizeof(int);
+  int f_offset = f_offset_ini;
+  for (int i = 0; i < file_cnt; i++) {
+#ifdef DEBUG_loadDirTable
+    pp("read entry from file offset:", f_offset);
+#endif
+    en = readEntry(dir, f_offset);
+    while (en->node_index == -1) {
+#ifdef DEBUG_loadDirTable
+    pp("skip one deleted entry... move forward");
+#endif
+      f_offset += en->getSize();
+      en = readEntry(dir, f_offset);
+    }
+    
+    f_offset += en->getSize();
+    std::pair<std::string, int> file_entry(std::string(en->name), en->node_index);
+    dir_table.insert(file_entry);
+#ifdef DEBUG_loadDirTable
+    pp("insert into table:", en->name, en->node_index);
+#endif
   }
   delete[] en->name; 
   delete en;
@@ -1180,16 +1351,144 @@ int VSFileSystem::allocBit(int start, int len) {
   return -1;
 }
 
+//#define DEBUG_alloc
 int VSFileSystem::allocInodeBlock() {
   int i_id = allocBit(section_offset[1], inum);
+#ifdef DEBUG_alloc
+  pp("allocate inode id", i_id);
+#endif
   return i_id;
 }
 
 int VSFileSystem::allocDataBlock() {
   int d_id = allocBit(section_offset[2], dnum);
+#ifdef DEBUG_alloc
+  pp("allocate data block id", i_id);
+#endif
   return d_id;
 }
 
+void VSFileSystem::parseCmd(char* op, char* rest) {
+  const int MAX_LEN = 1024;
+  std::stringstream ss;
+  if (rest != NULL) {
+    ss.str(rest);
+  }
+  
+  char delim = ' ';
+  
+  if (std::strcmp(op, "mkfs") == 0) {
+    mkfs();
+  }
+  else if (std::strcmp(op, "ls") == 0) {
+    pp("ls..");
+    ls();
+  }
+  else if (std::strcmp(op, "tree") == 0) {
+    tree();
+  }
+  else if (std::strcmp(op, "mkdir") == 0) {
+    char* name = new char[MAX_LEN];
+    pp("getline");
+    ss.getline(name, MAX_LEN, delim);
+    mkdir(name);
+  }
+  else if (std::strcmp(op, "rmdir") == 0) {
+    char* name = new char[MAX_LEN];
+    ss.getline(name, MAX_LEN, delim);
+    rmdir(name);
+  }
+  else if (std::strcmp(op, "cat") == 0) {
+    char* name = new char[MAX_LEN];
+    ss.getline(name, MAX_LEN, delim);
+    cat(name);
+  }
+  else if (std::strcmp(op, "rm") == 0) {
+    char* name = new char[MAX_LEN];
+    ss.getline(name, MAX_LEN, delim);
+    rm(name);
+  }
+  else if (std::strcmp(op, "cd") == 0) {
+    char* name = new char[MAX_LEN];
+    ss.getline(name, MAX_LEN, delim);
+    cd(name);
+  }
+  else if (std::strcmp(op, "open") == 0) {
+    char* name = new char[MAX_LEN];
+    char* flag = new char[MAX_LEN];
+    ss.getline(name, MAX_LEN, delim);
+    ss.getline(flag, MAX_LEN, delim);
+    pp("name", name, "flag", flag);
+    open(name, flag);
+  }
+  else if (std::strcmp(op, "import") == 0) {
+    char* src = new char[MAX_LEN];
+    char* dest = new char[MAX_LEN];
+    ss.getline(src, MAX_LEN, delim);
+    ss.getline(dest, MAX_LEN, delim);
+    import(src, dest);
+  }
+  else if (std::strcmp(op, "export") == 0) {
+    char* src = new char[MAX_LEN];
+    char* dest = new char[MAX_LEN];
+    ss.getline(src, MAX_LEN, delim);
+    ss.getline(dest, MAX_LEN, delim);
+    export_(src, dest);
+  }
+  else if (std::strcmp(op, "close") == 0) {
+    char* fd = new char[MAX_LEN];
+    ss.getline(fd, MAX_LEN, delim);
+    close(std::atoi(fd));
+  }
+  else if (std::strcmp(op, "seek") == 0) {
+    char* fd = new char[MAX_LEN];
+    char* offset = new char[MAX_LEN];
+    ss.getline(fd, MAX_LEN, delim);
+    ss.getline(offset, MAX_LEN, delim);
+    seek(std::atoi(fd), std::atoi(offset));
+  }
+  else if (std::strcmp(op, "read") == 0) {
+    char* fd = new char[MAX_LEN];
+    char* size = new char[MAX_LEN];
+    ss.getline(fd, MAX_LEN, delim);
+    ss.getline(size, MAX_LEN, delim);
+    read(std::atoi(fd), std::atoi(size));
+  }
+  else if (std::strcmp(op, "write") == 0) {
+    char* fd = new char[MAX_LEN];
+    char* content = new char[MAX_LEN];
+    ss.getline(fd, MAX_LEN, delim);
+
+    /* parse quote, get write string content */
+    char c;
+    ss.get(c);
+    int c_p = 0;
+    if (c == '"') {
+      while (ss.get(c)) {
+	if (c == '"')
+	  break;
+
+	content[c_p] = c;
+	c_p++;
+      }
+      /* if last character is not " */
+      if (c != '"') {
+	std::cerr << "quote not match" << std::endl;
+	return;
+      }
+    }
+    else {
+      content[c_p] = c;
+      ss.getline(content+1, MAX_LEN, delim); 
+    }
+
+    write(std::atoi(fd), content);
+  }
+
+  else {
+    /* pass */
+  }
+}
 
 void VSFileSystem::prompt() {
   const int MAX_LEN = 1024;
@@ -1199,14 +1498,19 @@ void VSFileSystem::prompt() {
   while(1) {
     std::cout << "$ ";
     std::cin.getline(input, MAX_LEN);
-    op = std::strtok(input, " \n");
-    if (std::strcmp(op, "mkfs") == 0) {
-      mkfs();
+
+    char separator = ' ';
+    char *sep_at = strchr(input, separator);
+    if(sep_at != NULL)
+    {
+      *sep_at = '\0'; /* overwrite first separator, creating two strings. */
+      //printf("first part: '%s'\nsecond part: '%s'\n", input, sep_at + 1);
+      parseCmd(input, sep_at + 1);
     }
     else {
-      std::cout << "command not supported\n";
+      parseCmd(input, NULL);
     }
-      
+    
   }
   
 }
@@ -1326,8 +1630,10 @@ void testrm() {
 
 void testcd() {
   VSFileSystem* fs = new VSFileSystem();
+  fs->open("file1", "w");
   fs->mkdir("dir1");
   fs->mkdir("dir2");
+  fs->ls();
   fs->cd("dir1");
   fs->open("f1", "w");
   fs->cd("..");
@@ -1335,8 +1641,8 @@ void testcd() {
   fs->cd("dir2");
   fs->ls();
   fs->mkdir("dir3");
-  fs->cd("/dir1");
-  fs->ls();
+  fs->cd("/");
+  fs->tree();
   delete fs;
 }
 
@@ -1353,12 +1659,32 @@ int testLevel1() {
 int testopen() {
   VSFileSystem* fs = new VSFileSystem();
   fs->open("foo", "w");
+  delete fs;
 }
 
+int testPrompt() {
+  VSFileSystem* fs = new VSFileSystem();
+  fs->prompt();
+  delete fs;
+}
+
+void testexport() {
+  VSFileSystem* fs = new VSFileSystem();
+  fs->mkdir("foo");
+  //fs->mkdir("foo/foo1");
+  //fs->mkdir("foo/foo1/foo2");
+  fs->prompt();
+  delete fs;
+}
+
+
+
 int main() {
+  testexport();
+  //testPrompt();
   //testopen();
   //testcd();
-  testrm();
+  //testrm();
   //testReadWrite();
   //testLevel1();
 }
