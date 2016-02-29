@@ -123,6 +123,7 @@ private:
 
   /* shell */
   void parseCmd(char* op, char* rest);
+
   
   /* virtual disk I/O */
   int dwrite(int dest, const void * source, int len);
@@ -135,6 +136,9 @@ public:
   ~VSFileSystem();
   /* shell */
   void prompt();
+
+  /* rpc api */
+  void rpc(int argc, char* argv[]);
 
   /* file system */
   int execCmd(std::string cmd);

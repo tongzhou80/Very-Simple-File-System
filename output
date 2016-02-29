@@ -1,63 +1,72 @@
+---------------------------
 disk size: 2097152
 level 0 capacity: 4Kb
 level 1 capacity: 4Mb
 level 2 capacity: 4Gb
-load current dir table into memory...
-get file counter...
-file counter: 4
-insert to table:
-. 0
-insert to table:
-.. 0
-insert to table:
-foo 1
-insert to table:
-bar 2
-===== open =====
-file name: foo
-flag: w
-find inode of foo
-write: open file node 1
-register fd 3 in fd map
-SUCCESS, fd = 3
-===== open =====
-file name: bar
-flag: w
-find inode of bar
-write: open file node 2
-register fd 4 in fd map
-SUCCESS, fd = 4
-===== write ======
-file offset: 0
-write string...
-read node capacity... 4096
-block_inner_offset 0
-write 14 bytes to address 106496
-update file offset to: 14
-===== cat =====
-lookup working dir table...
-file inode id: 1
-file size: 14
-block_inner_offset 0
-read 14 bytes from address 106496
-good restraut!
-===== write ======
-file offset: 4
-write string...
-read node capacity... 4096
-block_inner_offset 4
-write 5 bytes to address 106500
-update file offset to: 5
-===== read =====
-block_inner_offset 0
-read 12 bytes from address 106496
-goodhellorau
-===== close 3 =====
-erase fd 3 in fd_map
-===== close 3 =====
+---------------------------
+
+
+
+
+
+
+|---dir1
+|   |---subdir1
+|   |---subdir2
+|   |---subdir3
+|   |---subdir4
+|---dir2
+d	.	Sun Feb 28 20:56:10 2016	47Kb
+d	..	Sun Feb 28 20:56:10 2016	47Kb
+d	dir1	Sun Feb 28 20:56:10 2016	83Kb
+d	.	Sun Feb 28 20:56:10 2016	83Kb
+d	..	Sun Feb 28 20:56:10 2016	47Kb
+d	subdir1	Sun Feb 28 20:56:10 2016	23Kb
+d	subdir2	Sun Feb 28 20:56:10 2016	23Kb
+d	subdir3	Sun Feb 28 20:56:10 2016	23Kb
+d	subdir4	Sun Feb 28 20:56:10 2016	23Kb
+SUCCESS, fd = 0
+SUCCESS, fd = 1
 unknown file descriptor
-===== ls =====
-. 0
-.. 0
-bar 2
-foo 1
+unknown file descriptor
+SUCCESS, fd = 2
+unknown file descriptor
+unknown file descriptor
+unknown file descriptor
+unknown file descriptor
+This is file1\nThis is file2\nThis is file3\nThis is file4\nThis is file1\nThis is file2\nThis is file3\nThis is file4\nThis is file1\nThis is file2\nThis is file3\nThis is file4\nThis is file1\nThis is file2\nThis is file3\nThis is file4\nThis is file1\nThis is file2\nThis is file3\nThis is file4\nThis is file1\nThis is file2\nThis is file3\nThis is file4\nThis is file1\nThis is file2\nThis is file3\nThis is file4\nThis is file1\nThis is file2\nThis is file3\nThis is file4\nThis is file1\nThis is file2\nThis is file3\nThis is file4\nThis is file1\nThis is file2\nThis is file3\nThis is file4\nThis is file1\nThis is file2\nThis is file3\nThis is file4\nThis is file1\nThis is file2\nThis is file3\nThis is file4\nThis is file1\nThis is file2\nThis is file3\nThis is file4\nThis is file1\nThis is file2\nThis is file3\nThis is file4\nThis is file1\nThis is file2\nThis is file3\nThis is file4\nThis is file1\nThis is file2\nThis is file3\nThis is file4\nThis is file1\nThis is file2\nThis is file3\nThis is file4\nThis is file1\nThis is file2\nThis is file3\nThis is file4\nThis is file1\nThis is file2\nThis is file3\nThis is file4\nThis is file1\nThis is file2\nThis is file3\nThis is file4\nThis is file1\nThis is file2\nThis is file3\nThis is file4\nThis is file1\nThis is file2\nThis is file3\nThis is file4\nThis is file1\nThis is file2\nThis is file3\nThis is file4\nThis is file1\nThis is file2\nThis is file3\nThis is file4\nThis is file1\nThis is file2\nThis is file3\nThis is file4\nThis is file1\nThis is file2\nThis is file3\nThis is file4\nThis is file1\nThis is file2\nThis is file3\nThis is file4\nThis is file1\nThis is file2\nThis is file3\nThis is file4\nThis is file1\nThis is file2\nThis is file3\nThis is file4\nThis is file1\nThis is file2\nThis is file3\nThis is file4\n
+SUCCESS, fd = 3
+file offset is greater than file size. read nothing.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

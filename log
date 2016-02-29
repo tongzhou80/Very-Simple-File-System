@@ -1,0 +1,11 @@
+number of inodes: 16384
+number of data blocks: 24320
+### reload dir...
+clear cwd_table...
+file counter: 2
+read entry from file offset: 4
+insert into table: . 0
+read entry from file offset: 13
+insert into table: .. 0
+ls..
+===== ls =====

@@ -2,6 +2,7 @@
 #include <sstream>
 #include <iostream>
 #include <vector>
+#include <unistd.h>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
@@ -11,6 +12,11 @@ using namespace std;
 template <class T>
 void p(T foo) {
   std::cout << foo << '\n';
+}
+
+void testexec() {
+  char *args[] = {"~/assignments/fs/src/a.out", "-r", "-t", "-l", (char *) 0 };
+  execv("~/assignments/fs/src/a.out", args);
 }
 
 void testStrlen() {
@@ -49,8 +55,8 @@ void time() {
   cout << strlen(asctime(timeinfo));
 }
 
-void foo() {
-  int disk_size = 1024*1024;
+void newdisk() {
+  int disk_size = 50*1024*1024;
   std::ofstream ofs("vdisk", std::ios::binary | std::ios::out);
   ofs.seekp(disk_size - 1);
   ofs.write("", 1);
@@ -80,10 +86,6 @@ void bar() {
 }
 
 int main() {
-  // char * p = "hh";
-  // p[0] = 'a'; // undefined
-  //foo();
-  time();
-  char * a = "123";
-  cout << strlen(a);
+  newdisk();
+  //testexec();
 }

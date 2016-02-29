@@ -9,8 +9,8 @@
 #include <vector>
 #include "vsfs.hpp"
 
-//#define FS_DEBUG
-using namespace std;
+#define LOG_DEBUG
+//using namespace std;
 /*
   organization
   inode: 256 bytes
@@ -46,40 +46,26 @@ int VSFileSystem::dsize = 4*1024;
 
 VSFileSystem::VSFileSystem() {
   disk_name = "vdisk";
-  disk_size = 2*1024*1024;
+  disk_size = 100*1024*1024;
   cap_0 = VSFileSystem::dsize;
   cap_1 = cap_0 / sizeof(int) * cap_0;
   cap_2 = cap_0 / sizeof(int) * cap_1;
   calcGlobalOffset();
-  printConfig();
+  // printConfig();
 
   /* use a general stringstream if not read from stdin */
   input_stream = &std::cin;
   disk.open(disk_name, std::fstream::binary | std::fstream::in | std::fstream::out);
   
   /* fd start from 3, 0-2 reserve for std fd */
-  fd_cnt = 2;
-  root = mkfs(); // call mkfs will wipe and format the disk
-  // root = 0; // root defaults to No. 0 inode  
+  fd_cnt = -1;
+  // root = mkfs(); // call mkfs will wipe and format the disk
+  root = 0; // root defaults to No. 0 inode  
 
   
   /* by default, open root dir */
   cwd = root;
   loadCwdTable();
-  
-  /* debug */
-
-  // open("foo", "w");
-  // open("bar", "w");
-  // write(3, "good restraut!");
-  // cat("foo");
-  // seek(3, 4);
-  // write(3, "hello");
-  // seek(3, 0);
-  // read(3, 12);
-  // close(3);
-  // close(3);
-  // ls();
 }
 
 
@@ -90,6 +76,7 @@ Inode::Inode() {
   this->addr_0 = -1;
   this->addr_1 = -1;
   this->addr_2 = -1;
+
   std::strcpy(this->date, "date unknown");
   
   this->mode = 664;
@@ -166,10 +153,12 @@ std::size_t DirEntry::getSize() {
 }
 
 void VSFileSystem::printConfig() {
+  std::cout << "---------------------------" << std::endl;
   std::cout << "disk size: " << disk_size << std::endl;
   std::cout << "level 0 capacity: " << cap_0/1024 << "Kb" << std::endl;
   std::cout << "level 1 capacity: " << cap_1/1024/1024 << "Mb" << std::endl;
   std::cout << "level 2 capacity: " << cap_2/1024/1024/1024 << "Gb" << std::endl;
+  std::cout << "---------------------------" << std::endl;
 }
 
 
@@ -190,13 +179,13 @@ int VSFileSystem::createFile() {
   //pp("### create new file...");
   int i_id = allocInodeBlock();
   if (i_id == -1) {
-    std::cerr << "fail to allocate inode, inode region full.\n";
+    std::cout << "fail to allocate inode, inode region full.\n";
     return -1;
   }
 
   int d_id = allocDataBlock();
   if (d_id == -1) {
-    std::cerr << "fail to allocate data block, disk full.\n";
+    std::cout << "fail to allocate data block, disk full.\n";
     return -1;
   }
 
@@ -217,6 +206,7 @@ int VSFileSystem::newDir() {
   putIntAt(node->addr_0, 0);
   addEntryToDir(i_id, ".", i_id);
   addEntryToDir(cwd, "..", i_id);
+  loadCwdTable();
   /* now file counter is 2 */
   
   delete node;
@@ -227,13 +217,13 @@ int VSFileSystem::newDir() {
 //   pp("create new dir...");
 //   int i_id = allocBit(section_offset[1], inum);
 //   if (i_id == -1) {
-//     std::cerr << "fail to allocate inode, inode region full.\n";
+//     std::cout << "fail to allocate inode, inode region full.\n";
 //     return -1;
 //   }
 
 //   int d_id = allocBit(section_offset[2], dnum);
 //   if (d_id == -1) {
-//     std::cerr << "fail to allocate data block, disk full.\n";
+//     std::cout << "fail to allocate data block, disk full.\n";
 //     return -1;
 //   }
 
@@ -287,7 +277,7 @@ int VSFileSystem::releaseFD(int fd) {
   std::map<int, std::pair<int, int> >::iterator iter;
   iter = fd_map.find(fd);
   if (iter == fd_map.end()) {
-    std::cerr << "unknown file descriptor\n";
+    std::cout << "unknown file descriptor\n";
     return -1;
   }
   else {
@@ -323,24 +313,25 @@ int VSFileSystem::open(const char* file_path, const char* flag) {
       /* to do */
     }
     else {
-      std::cerr << "invalid flag\n";
+      std::cout << "invalid flag\n";
       return -1;
     }
   }
 
   else {
     if (std::strcmp(flag, "r") == 0) {
-      std::cerr << "file not existed." << std::endl;
+      std::cout << "file not existed." << std::endl;
       return -1;
     }
     else if (std::strcmp(flag, "w") == 0) {
       f_id = createFile(); // will also register file descriptor
       addEntryToDir(f_id, file_name, cwd);
+      loadCwdTable();
       int nfd = registerFD(f_id);
       std::cout << "SUCCESS, fd = " << nfd << std::endl;
     }
     else {
-      std::cerr << "invalid flag\n";
+      std::cout << "invalid flag\n";
       return -1;
     }
   }
@@ -362,13 +353,13 @@ void VSFileSystem::import(const char* source, const char* dest) {
 
 void VSFileSystem::export_(const char* source, const char* dest) {
   std::ofstream ofs(dest);
-  streambuf* oldCoutStreamBuf = cout.rdbuf();
-  cout.rdbuf(ofs.rdbuf());
+  std::streambuf* oldCoutStreamBuf = std::cout.rdbuf();
+  std::cout.rdbuf(ofs.rdbuf());
 
   cat(source);
 
   // Restore old cout.
-  cout.rdbuf( oldCoutStreamBuf );
+  std::cout.rdbuf( oldCoutStreamBuf );
 
   ofs.close();
 }
@@ -394,7 +385,7 @@ void VSFileSystem::export_(const char* source, const char* dest) {
 //     /* update data block */
 //   }
 //   else {
-//     std::cerr << "invalid flag\n";
+//     std::cout << "invalid flag\n";
 //     return -1;
 //   }
 
@@ -430,7 +421,7 @@ void VSFileSystem::export_(const char* source, const char* dest) {
 //     else {
 //       fileExist = false;
 //       if (FLAG == 0) {
-// 	std::cerr << "no such file.\n";
+// 	std::cout << "no such file.\n";
 // 	return -1;
 //       }
 //       else if (FLAG == 1) {
@@ -461,7 +452,7 @@ void VSFileSystem::export_(const char* source, const char* dest) {
 //   /* if file not exist, create new file */
 //   else {
 //     if (newfiles.size() > 1) {
-//     	std::cerr << "dir not exist, please make dir first.\n";
+//     	std::cout << "dir not exist, please make dir first.\n";
 //     	return -1;
 //     }
 //     else {
@@ -523,12 +514,12 @@ int VSFileSystem::cd(const char* dirname) {
 
   while (pch != NULL) {
     /* find in current working dir */
-    cout << "find inode of " << pch << endl;
+    pp("find inode of", pch);
     /* load dir table */
     /* to do */
     int file_id = findFileInCurDir(pch);
     if (file_id == -1) {
-      std::cerr << "error: file " << pch << " not found." << std::endl;
+      std::cout << "error: file " << pch << " not found." << std::endl;
       return -1;
     }
     
@@ -536,6 +527,8 @@ int VSFileSystem::cd(const char* dirname) {
     changeCwdTo(file_id);
     pch = std::strtok(NULL, delim);
   }
+
+  pp("===== cd ends =====");
   return 0;
 }
 
@@ -608,7 +601,7 @@ int VSFileSystem::seek(int fd, int offset) {
   std::map<int, std::pair<int, int> >::iterator iter;
   iter = fd_map.find(fd);
   if (iter == fd_map.end()) {
-    std::cerr << "unknown file descriptor\n";
+    std::cout << "unknown file descriptor\n";
     return -1;
   }
   else {
@@ -624,7 +617,7 @@ int VSFileSystem::write(int fd, const char* str) {
   std::map<int, std::pair<int, int> >::iterator iter;
   iter = fd_map.find(fd);
   if (iter == fd_map.end()) {
-    std::cerr << "unknown file descriptor\n";
+    std::cout << "unknown file descriptor\n";
     return -1;
   }
   else {
@@ -658,7 +651,7 @@ int VSFileSystem::write(int fd, const char* str) {
 int VSFileSystem::allocAddr_1(Inode * node) {
   int d_id = allocDataBlock();
   if (d_id == -1) {
-    std::cerr << "allocate data block failed." << std::endl;
+    std::cout << "allocate data block failed." << std::endl;
   }
 
   node->addr_1 = getDataOffset(d_id);
@@ -685,7 +678,7 @@ int VSFileSystem::calcDiskAddr(Inode * node, int f_offset) {
     
   }
   else {
-    std::cerr << "file offset over 4Gb, too large to handle.\n";
+    std::cout << "file offset over 4Gb, too large to handle.\n";
   }
 
   return disk_addr;
@@ -772,7 +765,7 @@ int VSFileSystem::read(int fd, int size) {
   std::map<int, std::pair<int, int> >::iterator iter;
   iter = fd_map.find(fd);
   if (iter == fd_map.end()) {
-    std::cerr << "unknown file descriptor\n";
+    std::cout << "unknown file descriptor\n";
     return -1;
   }
   
@@ -804,7 +797,7 @@ int VSFileSystem::cat(const char* dirname) {
   pp("lookup working dir table...");
   std::map<std::string, int>::iterator iter = cwd_table.find(std::string(dirname));
   if (iter == cwd_table.end()) {
-    std::cerr << "no such file.\n";
+    std::cout << "no such file.\n";
   }
   else {
     int i_id = iter->second;
@@ -821,6 +814,7 @@ int VSFileSystem::cat(const char* dirname) {
     for (int i = 0; i < file_size; i++) {
       std::cout << content[i];
     }
+    std::cout << std::endl;
     delete[] content;
     delete node;
   }
@@ -829,14 +823,14 @@ int VSFileSystem::cat(const char* dirname) {
 int VSFileSystem::readData(Inode* node, int f_offset, void * buffer, int len) {
   /* boundry check */
   if (f_offset >= node->size) {
-    std::cerr << "file offset is greater than file size. read nothing." << std::endl;
+    std::cout << "file offset is greater than file size. read nothing." << std::endl;
     return 0;
   }
 
   int dsize = VSFileSystem::dsize;
   int block_inner_offset = getBlockInnerOffset(f_offset);
 
-#ifdef FS_DEBUG
+#ifdef DEBUG_readData
   pp("block_inner_offset", block_inner_offset);
 #endif
   int disk_addr = calcDiskAddr(node, f_offset);
@@ -845,7 +839,7 @@ int VSFileSystem::readData(Inode* node, int f_offset, void * buffer, int len) {
   if (block_inner_offset + len <= dsize) {  
     /* if reading reaches the end of file, stop */
     len = (len > node->size - f_offset) ? (node->size - f_offset) : len;
-#ifdef FS_DEBUG
+#ifdef DEBUG_readData
     pp("read", len, "bytes from address", disk_addr);
 #endif
     dread(disk_addr, buffer, len);
@@ -884,8 +878,6 @@ int VSFileSystem::addEntryToDir(int f_id, const char* filename, int dir) {
   int f_cnt = getIntAt(dir_node->addr_0);
   putIntAt(dir_node->addr_0, f_cnt+1);
 
-  /* update cwd_table */
-  loadCwdTable();
   delete dir_node;
 
 #ifdef DEBUG_addEntryToDir   
@@ -982,7 +974,7 @@ void VSFileSystem::rmDirEntry(int d_id, const char* filename, int f_t) {
   Inode * dir = readInode(cwd);
   /* get file counter */
   int file_cnt = getDirFileNum(dir);
-  cout << "file counter:" << " " << file_cnt << "\n";
+  pp("file counter:", file_cnt);
 
   int ff = 0; // file offset of each entry
   DirEntry * en;
@@ -1011,7 +1003,7 @@ void VSFileSystem::rmDirEntry(int d_id, const char* filename, int f_t) {
     if (std::strcmp(en->name, filename) == 0) {
       if (entry_node->type == 1) {
 	if (!checkDirEmpty(entry_node)) {
-	  std::cerr << "directory must be empty." << std::endl;
+	  std::cout << "directory must be empty." << std::endl;
 	  return;
 	}
 	else {
@@ -1160,6 +1152,7 @@ char* VSFileSystem::parsePath(char* & file_path) {
   }
 }
 
+/* suppose mkdir d1/d2/d3 */
 int VSFileSystem::mkdir(const char * name) {
   pp("===== mkdir", name, "=====");
   int saved_cwd = cwd;
@@ -1170,15 +1163,21 @@ int VSFileSystem::mkdir(const char * name) {
   char* file_dir = file_path;
   pp("------------dir", file_dir);
   pp("------------file", file_name);
+  /* cd d1/d2, cwd points to d1/d2*/
   cd(file_dir);
   
   int i_id = newDir();
   if (i_id == -1) {
     return -1;
   }
+  /* add entry to d2 */
   addEntryToDir(i_id, file_name, cwd);
+  /* update d2 table */
+  loadCwdTable();
 
+  /* back to ./ */
   changeCwdTo(saved_cwd);
+
 }
 
 
@@ -1227,7 +1226,6 @@ bool VSFileSystem::checkEntryExist(Inode* dir, int offset) {
 }
 
 #define DEBUG_loadCwdTable
-
 int VSFileSystem::loadCwdTable() {
 #ifdef DEBUG_loadCwdTable
   pp("### reload dir...");
@@ -1351,7 +1349,7 @@ int VSFileSystem::allocBit(int start, int len) {
   return -1;
 }
 
-//#define DEBUG_alloc
+#define DEBUG_alloc
 int VSFileSystem::allocInodeBlock() {
   int i_id = allocBit(section_offset[1], inum);
 #ifdef DEBUG_alloc
@@ -1363,9 +1361,39 @@ int VSFileSystem::allocInodeBlock() {
 int VSFileSystem::allocDataBlock() {
   int d_id = allocBit(section_offset[2], dnum);
 #ifdef DEBUG_alloc
-  pp("allocate data block id", i_id);
+  pp("allocate data block id", d_id);
 #endif
   return d_id;
+}
+
+/* accept command line arguments as commands */
+/* redirect output to a file, and rpc server will return file content to client */
+void VSFileSystem::rpc(int argc, char* argv[]) {
+  std::ofstream ofs("tmp");
+  std::streambuf* oldCoutStreamBuf = std::cout.rdbuf();
+  std::cout.rdbuf(ofs.rdbuf());
+
+  // std::cout << "argc: " << argc << std::endl;
+  // std::cout << "argv[1]: " << argv[1] << std::endl;
+
+  char* cmd = strdup(argv[1]);
+  const int MAX_LEN = 1024;
+  char* op;
+  char separator = ' ';
+  char *sep_at = strchr(cmd, separator);
+  if(sep_at != NULL)
+    {
+      *sep_at = '\0'; /* overwrite first separator, creating two strings. */
+      parseCmd(cmd, sep_at + 1);
+    }
+  else {
+    parseCmd(cmd, NULL);
+  }
+
+  
+  // Restore old cout.
+  std::cout.rdbuf( oldCoutStreamBuf );
+  ofs.close();
 }
 
 void VSFileSystem::parseCmd(char* op, char* rest) {
@@ -1373,6 +1401,7 @@ void VSFileSystem::parseCmd(char* op, char* rest) {
   std::stringstream ss;
   if (rest != NULL) {
     ss.str(rest);
+    pp(op, rest);
   }
   
   char delim = ' ';
@@ -1467,13 +1496,20 @@ void VSFileSystem::parseCmd(char* op, char* rest) {
       while (ss.get(c)) {
 	if (c == '"')
 	  break;
-
-	content[c_p] = c;
+	else if (c == '\\') {
+	  ss.get(c);
+	  if (c == 'n') {
+	    content[c_p] = '\n';
+	  }
+	}
+	else {
+	  content[c_p] = c;
+	}
 	c_p++;
       }
       /* if last character is not " */
       if (c != '"') {
-	std::cerr << "quote not match" << std::endl;
+	std::cout << "quote not match" << std::endl;
 	return;
       }
     }
@@ -1496,20 +1532,24 @@ void VSFileSystem::prompt() {
   char* op;
 
   while(1) {
-    std::cout << "$ ";
-    std::cin.getline(input, MAX_LEN);
-
-    char separator = ' ';
-    char *sep_at = strchr(input, separator);
-    if(sep_at != NULL)
-    {
-      *sep_at = '\0'; /* overwrite first separator, creating two strings. */
-      //printf("first part: '%s'\nsecond part: '%s'\n", input, sep_at + 1);
-      parseCmd(input, sep_at + 1);
+    //std::cout << "$ ";
+    if (std::cin.getline(input, MAX_LEN)) {
+      char separator = ' ';
+      char *sep_at = strchr(input, separator);
+      if(sep_at != NULL)
+	{
+	  *sep_at = '\0'; /* overwrite first separator, creating two strings. */
+	  //printf("first part: '%s'\nsecond part: '%s'\n", input, sep_at + 1);
+	  parseCmd(input, sep_at + 1);
+	}
+      else {
+	parseCmd(input, NULL);
+      }
     }
     else {
-      parseCmd(input, NULL);
+      break;
     }
+
     
   }
   
@@ -1528,6 +1568,8 @@ int VSFileSystem::mkfs() {
   /* assume cwd (root's parent dir) id is 0 */
   cwd = 0;
   int root_node_id = newDir();
+  cwd = root_node_id;
+  loadCwdTable();
   return root_node_id;
 }
 
@@ -1539,12 +1581,21 @@ void VSFileSystem::loadDisk() {
 void VSFileSystem::calcGlobalOffset() {
   int kb = 1 << 10;
   int mb = 1 << 20;
+  
+  /* 2M disk configuration */
+  // section_offset[0] = 0*kb; // super block
+  // section_offset[1] = 2*kb; // inode map
+  // section_offset[2] = 4*kb; // data map
+  // section_offset[3] = 8*kb; // inode region
+  // section_offset[4] = 100*kb; // data region
+  // section_offset[5] = 2*mb;
+
   section_offset[0] = 0*kb; // super block
-  section_offset[1] = 2*kb; // inode map
-  section_offset[2] = 4*kb; // data map
-  section_offset[3] = 8*kb; // inode region
-  section_offset[4] = 100*kb; // data region
-  section_offset[5] = 2*mb;
+  section_offset[1] = 256*kb; // inode map
+  section_offset[2] = 512*kb; // data map
+  section_offset[3] = 1*mb; // inode region
+  section_offset[4] = 5*mb; // data region
+  section_offset[5] = 100*mb;
 
   inum = (section_offset[4] - section_offset[3])/isize;
   dnum = (section_offset[5] - section_offset[4])/dsize;
@@ -1678,13 +1729,31 @@ void testexport() {
 }
 
 
+int main(int argc, char* argv[]) {
+#ifdef LOG_DEBUG
+  std::ofstream ofs("log");
+  std::streambuf* oldCoutStreamBuf = std::cerr.rdbuf();
+  std::cerr.rdbuf(ofs.rdbuf());
+#endif
 
-int main() {
-  testexport();
+  VSFileSystem* fs = new VSFileSystem();
+  // fs->prompt();
+  fs->rpc(argc, argv);
+
+
+  //testexport();
   //testPrompt();
   //testopen();
   //testcd();
   //testrm();
   //testReadWrite();
   //testLevel1();
+  
+
+  
+  
+#ifdef LOG_DEBUG
+  std::cerr.rdbuf( oldCoutStreamBuf );
+  ofs.close();  
+#endif
 }
