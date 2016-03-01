@@ -299,23 +299,24 @@ int VSFileSystem::releaseFD(int fd) {
    open unexisting file for reading: fileNotExist exception
    open unexisting file for writing: 0
  */
-int VSFileSystem::open(const char* file_path, const char* flag) {
-  pp("===== open", file_path, flag, "=====");
+int VSFileSystem::open(const char* const_file_path, const char* flag) {
+  pp("===== open", const_file_path, flag, "=====");
   int saved_cwd = cwd;
   /* parse file_path to be two parts, file_dir and file_name */
-  const char* file_dir = ".";
-  const char* file_name = file_path;
+
+  char* file_path = strdup(const_file_path);
+  char* file_name = parsePath(file_path);
+  char* file_dir = file_path;
+  pp("------------dir", file_dir);
+  pp("------------file", file_name);
   cd(file_dir);
 
   int f_id = findFileInCurDir(file_name);
   if (f_id != -1) {
-    if (std::strcmp(flag, "r") == 0) {
+    if (std::strcmp(flag, "r") == 0 || std::strcmp(flag, "w") == 0) {
       pp("register fd", fd_cnt, "in fd_map");
       registerFD(f_id);
       std::cout << "SUCCESS, fd = " << fd_cnt << std::endl;
-    }
-    else if (std::strcmp(flag, "w") == 0) {
-      /* to do */
     }
     else {
       std::cout << "invalid flag\n";
@@ -591,6 +592,7 @@ int VSFileSystem::cd(const char* dirname) {
     /* to do */
     int file_id = findFileInCurDir(pch);
     if (file_id == -1) {
+      pp("error: file", pch, "not found");
       std::cout << "error: file " << pch << " not found." << std::endl;
       return -1;
     }
@@ -1659,7 +1661,6 @@ void VSFileSystem::parseCmd(char* op, char* rest) {
       content[c_p] = c;
       ss.getline(content+1, MAX_LEN, delim); 
     }
-
     write_(std::atoi(fd), content, std::strlen(content));
   }
 
@@ -1667,6 +1668,12 @@ void VSFileSystem::parseCmd(char* op, char* rest) {
     char* binary_cmd;
 
     /* check if there is such a file */
+    int fd = open(op, "r");
+    if (fd == -1) {
+      std::cout << "no such file named " << op << std::endl;
+      return;
+    }    
+    close(fd);
     
     if (rest == NULL)
       binary_cmd = op;
@@ -1675,7 +1682,9 @@ void VSFileSystem::parseCmd(char* op, char* rest) {
       binary_cmd = concatString(tmp, rest);
       delete tmp;
     }
-    system(binary_cmd);    
+
+    export_(binary_cmd, binary_cmd);
+    system(concatString("./", binary_cmd));    
   }
 }
 
@@ -1916,9 +1925,9 @@ int main(int argc, char* argv[]) {
   //fs->prompt();
   //fs->rpc(argc, argv);
 
-  testexport();
   //testexport();
-  //testPrompt();
+  //testexport();
+  testPrompt();
   //testopen();
   //testcd();
   //testrm();
