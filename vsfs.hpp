@@ -124,6 +124,7 @@ private:
   /* shell */
   void parseCmd(char* op, char* rest);
   char* concatString(char* a, char* b);
+  void execBinary(char* cmd);
   
   /* virtual disk I/O */
   int dwrite(int dest, const void * source, int len);

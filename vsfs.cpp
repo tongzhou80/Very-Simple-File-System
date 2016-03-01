@@ -8,6 +8,8 @@
 #include <iostream>
 #include <vector>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include "vsfs.hpp"
 
 #define LOG_DEBUG
@@ -348,6 +350,10 @@ int VSFileSystem::open(const char* const_file_path, const char* flag) {
 void VSFileSystem::import(const char* source, const char* dest) {
   int fd = open(dest, "w");
   std::ifstream ifs(source, std::ios::binary);
+  if (!ifs.is_open()) {
+    std::cout << "no such file named " << source << " in host file system" << std::endl;
+    return;
+  }
 
   ifs.seekg(0, ifs.end);
   int f_len = ifs.tellg();
@@ -892,6 +898,7 @@ int VSFileSystem::cat(const char* filename) {
   std::map<std::string, int>::iterator iter = cwd_table.find(std::string(filename));
   if (iter == cwd_table.end()) {
     std::cout << "no such file.\n";
+    return -1;
   }
   else {
     int i_id = iter->second;
@@ -899,6 +906,9 @@ int VSFileSystem::cat(const char* filename) {
     Inode * node = readInode(i_id);
     int file_size = node->size;
     pp("file size:", node->size);
+    if (file_size == 0) {
+      std::cout << "file size is 0" << std::endl;
+    }
 
     char* content = new char[file_size+1];
     readData(node, 0, content, file_size);
@@ -911,6 +921,7 @@ int VSFileSystem::cat(const char* filename) {
     std::cout << std::endl;
     delete[] content;
     delete node;
+    return 0;
   }
 }
 
@@ -1502,41 +1513,6 @@ void VSFileSystem::rpc(int argc, char* argv[]) {
   ofs.close();
 }
 
-// void VSFileSystem::execBinary(char* cmd) {
-//   //arguments for ls, will run: ls  -l /bin
-//   char * ls_args[4] = { "./fs_rpc", cmd,  NULL} ;
-//   pid_t c_pid, pid;
-//   int status;
-
-//   c_pid = fork();
-
-//   if (c_pid == 0){
-//     /* CHILD */
-
-//     printf("Child: executing %s\n", cmd);
-
-//     //execute ls
-//     execvp( ls_args[0], ls_args);
-//     //only get here if exec failed
-//     perror("execve failed");
-//   }else if (c_pid > 0){
-//     /* PARENT */
-
-//     if( (pid = wait(&status)) < 0){
-//       perror("wait");
-//       _exit(1);
-//     }
-
-//     printf("Parent: finished\n");
-
-//   }else{
-//     perror("fork failed");
-//     _exit(1);
-//   }
-  
-// }
-
-
 void VSFileSystem::parseCmd(char* op, char* rest) {
   if (std::strcmp(op, "") == 0) {
     return;
@@ -1666,6 +1642,7 @@ void VSFileSystem::parseCmd(char* op, char* rest) {
   }
 
   else {
+    /* binary file can't have command line parameters */
     char* binary_cmd;
 
     /* check if there is such a file */
@@ -1676,18 +1653,54 @@ void VSFileSystem::parseCmd(char* op, char* rest) {
     }    
     close(fd);
     
-    if (rest == NULL)
-      binary_cmd = op;
-    else {
-      char* tmp = concatString(op, " ");
-      binary_cmd = concatString(tmp, rest);
-      delete tmp;
-    }
-
-    export_(binary_cmd, binary_cmd);
-    system(concatString("./", binary_cmd));    
+    // if (rest == NULL)
+    //   binary_cmd = op;
+    // else {
+    //   char* tmp = concatString(op, " ");
+    //   binary_cmd = concatString(tmp, rest);
+    //   delete tmp;
+    // }
+    // export_(binary_cmd, binary_cmd);
+    // execBinary(concatString("./", binary_cmd));
+    
+    export_(op, op);
+    execBinary(concatString("./", op));
+    //system(concatString("./", binary_cmd));    
   }
 }
+
+void VSFileSystem::execBinary(char* cmd) {
+  //arguments for ls, will run: ls  -l /bin
+  char * ls_args[2] = {cmd, NULL} ;
+  pid_t c_pid, pid;
+  int status;
+
+  c_pid = fork();
+
+  if (c_pid == 0){
+    /* CHILD */
+    printf("Child: executing %s\n", cmd);
+
+    //execute ls
+    execvp( ls_args[0], ls_args);
+    //only get here if exec failed
+    perror("execve failed");
+  } else if (c_pid > 0){
+    /* PARENT */
+
+    if( (pid = wait(&status)) < 0){
+      perror("wait");
+      _exit(1);
+    }
+
+    //printf("Parent: finished\n");
+
+  } else{
+    perror("fork failed");
+    _exit(1);
+  }
+}
+
 
 char* VSFileSystem::concatString(char* a, char* b) {
   int a_l = std::strlen(a);
