@@ -347,7 +347,7 @@ int VSFileSystem::open(const char* file_path, const char* flag) {
 
 void VSFileSystem::import(const char* source, const char* dest) {
   int fd = open(dest, "w");
-  std::ifstream ifs(source);
+  std::ifstream ifs(source, std::ios::binary);
 
   ifs.seekg(0, ifs.end);
   int f_len = ifs.tellg();
@@ -357,14 +357,7 @@ void VSFileSystem::import(const char* source, const char* dest) {
   
   char* buffer = new char[f_len];
   ifs.read(buffer, f_len);
-
   write_(fd, buffer, f_len);
-
-  //   char c[2];
-  // c[1] = '\0';
-  // while (ifs.get(c[0])) {
-  //   write_(fd, c);
-  // }
   close(fd);
 }
 
@@ -418,7 +411,7 @@ void VSFileSystem::import(const char* source, const char* dest) {
 
 
 void VSFileSystem::export_(const char* source, const char* dest) {
-  std::ofstream ofs(dest);
+  std::ofstream ofs(dest, std::ios::binary);
   pp("===== export =====");
   pp("lookup working dir table...");
   std::map<std::string, int>::iterator iter = cwd_table.find(std::string(source));
@@ -712,6 +705,8 @@ int VSFileSystem::write_(int fd, const char* str, int size) {
     int str_len = std::strlen(str);
     writeData(node, f_offset, str, size);
 
+    
+
     /* update file size */
     if (f_offset + size <= node->size) {
       /* don't update size */
@@ -751,9 +746,11 @@ int VSFileSystem::calcDiskAddr(Inode * node, int f_offset) {
   }
   /* if use addr_0 and addr_1 */
   else if (f_offset < cap_1) {
-    int addr_1_0 = getIntAt(node->addr_1);
     int offset_1 = f_offset - cap_0;
-    disk_addr = addr_1_0 + offset_1/cap_0 * sizeof(int) + offset_1%cap_0;
+
+    int base = node->addr_1;
+    int deviated_base = base + offset_1/cap_0*sizeof(Address);
+    disk_addr = getIntAt(deviated_base) + offset_1%cap_0;
   }
   /* if use three level address */
   else if (f_offset < cap_2) {
@@ -793,21 +790,33 @@ int VSFileSystem::writeData(Inode* node, int f_offset, const void * source, int 
     /* check if writing involves more than one block */
     int block_inner_offset = getBlockInnerOffset(f_offset);
 #ifdef DEBUG_writeData
+    pp("file_offset", f_offset);
     pp("block_inner_offset", block_inner_offset);
 #endif
     int disk_addr = calcDiskAddr(node, f_offset);
+
+    
     /* if involves only current block */
     if (block_inner_offset + len <= dsize) {
 #ifdef DEBUG_writeData
+      pp("write", len, "from C address", source);
       pp("write", len, "bytes to address", disk_addr);
 #endif
       dwrite(disk_addr, source, len);
+
     }
     /* if need new data block */
     else {
       int write_len = dsize - block_inner_offset;
+      pp("write", write_len, "from C address", source);
       pp("write", write_len, "bytes to address", disk_addr);
       dwrite(disk_addr, source, write_len);
+
+      // if (f_offset == 4096)
+      // 	std::cout << ((char*)source+64)[0] << "\n\n";
+
+
+      
       writeData(node, f_offset+write_len, ((char*)source)+write_len, len-write_len);
     }
 
@@ -931,12 +940,18 @@ int VSFileSystem::readData(Inode* node, int f_offset, void * buffer, int len) {
   else {
     pp("read to next data block");
     int read_len = dsize - block_inner_offset;
+
+#ifdef DEBUG_readData
+    pp("read", read_len, "bytes from address", disk_addr);
+#endif
     dread(disk_addr, buffer, read_len);
     readData(node, f_offset+read_len, ((char*)buffer)+read_len, len-read_len);
   }
 
 }
 
+    
+    
 int VSFileSystem::dread(int dest, void * buffer, int len) {
   disk.seekg(dest);
   disk.read((char*)buffer, len);
@@ -1650,6 +1665,9 @@ void VSFileSystem::parseCmd(char* op, char* rest) {
 
   else {
     char* binary_cmd;
+
+    /* check if there is such a file */
+    
     if (rest == NULL)
       binary_cmd = op;
     else {
@@ -1877,10 +1895,10 @@ int testPrompt() {
 
 void testexport() {
   VSFileSystem* fs = new VSFileSystem();
-  fs->mkdir("foo");
-  //fs->mkdir("foo/foo1");
-  //fs->mkdir("foo/foo1/foo2");
-  fs->prompt();
+  fs->mkfs();
+  fs->import("hello", "hello1");
+  fs->export_("hello1", "hello1");
+
   delete fs;
 }
 
@@ -1898,9 +1916,9 @@ int main(int argc, char* argv[]) {
   //fs->prompt();
   //fs->rpc(argc, argv);
 
-
+  testexport();
   //testexport();
-  testPrompt();
+  //testPrompt();
   //testopen();
   //testcd();
   //testrm();
