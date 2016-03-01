@@ -3,7 +3,7 @@ chapter(design) can be found in the end of this doc. In addition, RPC is support
 
 [usage]
 VS file system assumes you have a file called "vdisk" in the same directory. The file acts as the
-virtual the file system operates on. The size of "vdisk" should be 100M. The maximum file size is4M.
+virtual the file system operates on. The size of "vdisk" should be 100M. The maximum file size is 4M.
 The maximum file number is 24320.
 
 File descriptor is represented by an unsigned integer, which starts from 0. The new file descritor
