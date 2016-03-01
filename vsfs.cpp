@@ -7,6 +7,7 @@
 #include <sstream>
 #include <iostream>
 #include <vector>
+#include <unistd.h>
 #include "vsfs.hpp"
 
 #define LOG_DEBUG
@@ -25,8 +26,6 @@
 
 
    ===== doing =====
-   add a new write which 
-   fix import/export bug
    
 
    ===== to do =====
@@ -412,15 +411,17 @@ void VSFileSystem::import(const char* source, const char* dest) {
 
 
 void VSFileSystem::export_(const char* source, const char* dest) {
-  std::ofstream ofs(dest, std::ios::binary);
   pp("===== export =====");
+  std::ofstream ofs(dest, std::ios::binary);
+  int fd = open(source, "r");
   pp("lookup working dir table...");
-  std::map<std::string, int>::iterator iter = cwd_table.find(std::string(source));
-  if (iter == cwd_table.end()) {
+  if (fd == -1) {
     std::cout << "no such file.\n";
   }
   else {
-    int i_id = iter->second;
+    std::map<int, std::pair<int, int> >::iterator iter;
+    iter = fd_map.find(fd);
+    int i_id = (iter->second).first;
     pp("file inode id:", i_id);
     Inode * node = readInode(i_id);
     int file_size = node->size;
@@ -433,7 +434,7 @@ void VSFileSystem::export_(const char* source, const char* dest) {
     delete[] content;
     delete node;
   }
-
+  close(fd);
   ofs.close();
 }
 
