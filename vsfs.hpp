@@ -123,7 +123,7 @@ private:
 
   /* shell */
   void parseCmd(char* op, char* rest);
-
+  char* concatString(char* a, char* b);
   
   /* virtual disk I/O */
   int dwrite(int dest, const void * source, int len);
@@ -152,6 +152,7 @@ public:
   int seek(int fd, int offset);
   int read(int fd, int size);
   int write(int fd, const char* str);
+  int write_(int fd, const char* str, int size);
   int cat(const char* filename);
   int ls();
   void tree();

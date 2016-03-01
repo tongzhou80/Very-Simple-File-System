@@ -95,9 +95,21 @@ automatically, which has inode id 0.
 +----------------------+         +------------+	      +------------+
 | backend file system  |  ---->  | rpc server |  -->  | rpc client |
 | 	       	       |  <----  |     	      |  <--  | 	   |
-+----------------------+  fork   +------------+       +------------+
++----------------------+   ipc   +------------+       +------------+
 rpc server forks a subprocess to run backend file system and pipe commands sent by client to file system.
 When the command is executed, result is returned to rpc server and then to rpc client.
+
+[test]
+Testing a file system is also challenging. The following is how I test this very simple file system.
+
+- address mapping test
+  Open a file, seek to 10000, write foo. Cat the file and see if you can see 10000 space and a foo in the
+  end.
+
+- import/export test
+  import a file and export it immediately. Diff the original file and the one exported from VS file system.
+
+
 
 [reference]
 OS three easy piece
