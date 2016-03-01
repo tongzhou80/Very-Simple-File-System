@@ -1,61 +1,26 @@
-This an implementation of the very simple file system proposed in "OS three easy pieces". The original
-chapter(design) can be found in the end of this doc. In addition, RPC is supported.
-
 [usage]
 VS file system assumes you have a file called "vdisk" in the same directory. The file acts as the
-virtual the file system operates on. The size of "vdisk" should be 100M. The maximum file size is4M.
-The maximum file number is 24320.
+virtual the file system operates on. The size of "vdisk" should be 100M.
+
+make -f Makefile.vsfs
+make -f Makefile.rpc
+./sh: run file system
+sudo ./shell_server: run rpc server
+./shell_client: run rpc client
+
+[functionality]
+supported commands:
+All commands specified in assigment requirement.
+
+Also support running a binary executable in the shell.
 
 File descriptor is represented by an unsigned integer, which starts from 0. The new file descritor
 will simply increment. So when a file is close, its file descriptor won't be reused.
 
-[build]
-make -f Makefile.vsfs
-make -f Makefile.rpc (optional)
-./sh: run file system
-sudo ./shell_server: run rpc server (optional)
-./shell_client: run rpc client (optional)
-
-[functionality]
-supported commands:
-mkfs: mkfs
-  - Make a new file system, i.e., format the disk so that it is ready for other file system operations.
-open: open <filename> <flag>
-  - Open a file with the given <flag>, return a file descriptor <fd> associated with this file. Example:
-    open foo w shell returns SUCCESS, fd=5
-read: read <fd> <size>
-  - Read <size> bytes from the file associated with <fd>, from current file offset. The current file offset
-    will move forward <size> bytes after read. Example: read 5 10
-write: write <fd> <string>
-  - Write <string> into file associated with <fd>, from current file offset. The current file offset will
-    move forward the size of the string after write. Here <string> can be in double quote or not. If the
-    end of the file is reached, the size of the file will be increased. Example: write 5 "hello, world"
-seek: seek <fd> <offset>
-  - Move the current file offset associated with <fd> to a new file offset at <offset>. The <offset> means
-    the number of bytes from the beginning of the file. Example: seek 5 10
-close: close <fd>
-  - Close the file associated with <fd>. Example: close 5
-mkdir: mkdir <dirname>
-  - Create a sub-directory <dirname> under the current directory. Example: mkdir foo
-rmdir: rmdir <dirname>
-  - Remove the sub-directory <dirname>. This directory has to be empty when it is removed. Example: rmdir foo
-cd: cd <dirname>
-  - Change the current directory to <dirname>. Example: cd ../../foo/bar
-ls: ls
-  - Show the content of the current directory. No parameters need to be supported.
-cat: cat <filename>
-  - Show the content of the file. Example: cat foo
-tree: tree
-  - List the contents of the current directory in a tree-format.
-import: import <srcname> <destname>
-  - Import a file from the host machine file system to the current directory. Example: import /d/foo foo
-export: export <srcname> <destname>
-  - Export a file from the current directory to the host machine file system. Example: export foo /d/foo
-
-Also support running a binary executable in the shell. Example: ./hello 
+The maximum file size is 4M. The maximum file number is 24320.
 
 [development enviroment]
-Red Hat Enterprise Linux Server release 7.2 (Maipo)
+The program is developped on Red Hat Enterprise Linux Server release 7.2 (Maipo)
 
 [organization]
 +-------+--------------+-------------+-----------------+----------------+
@@ -169,5 +134,5 @@ Testing a file system is also challenging. The following is how I test this very
   import a file and export it immediately. Diff the original file and the one exported from VS file system.
 
 [reference]
-OS three easy pieces (http://pages.cs.wisc.edu/~remzi/OSTEP/file-implementation.pdf)
+OS three easy piece
 RPC programming guide
