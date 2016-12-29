@@ -1,5 +1,4 @@
-This an implementation of the very simple file system proposed in "OS three easy pieces". The original
-chapter(design) can be found in the end of this doc. In addition, RPC is supported.
+This an implementation of the very simple file system proposed in "OS three easy pieces". The original chapter(design) can be found at the end of this documentation.
 
 [usage]
 VS file system assumes you have a file called "vdisk" in the same directory. The file acts as the
@@ -18,7 +17,9 @@ sudo ./shell_server: run rpc server (optional)
 
 [issue]
 The code was written one year ago, due to a lack of programming experience, the project was poorly organized.
-The RPC functionality was also not fully supported, it did not work under certain circumstances, but I forget what the issue was.
+
+
+The project also includes an incomplete RPC functionality, which did not work under certain circumstances, but I forget what the issue was. The file system part works fine.
 
 [functionality]
 supported commands:
