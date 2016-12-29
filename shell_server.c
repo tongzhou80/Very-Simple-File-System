@@ -22,7 +22,6 @@ void execfs(char* cmd) {
 
   if (c_pid == 0){
     /* CHILD */
-
     printf("Child: executing %s\n", cmd);
 
     //execute ls
