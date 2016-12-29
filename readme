@@ -16,6 +16,10 @@ make -f Makefile.rpc (optional)
 sudo ./shell_server: run rpc server (optional)
 ./shell_client: run rpc client (optional)
 
+[issue]
+The code was written one year ago, due to a lack of programming experience, the project was poorly organized.
+The RPC functionality was also not fully supported, it did not work under certain circumstances, but I forget what the issue was.
+
 [functionality]
 supported commands:
 mkfs: mkfs
@@ -170,4 +174,4 @@ Testing a file system is also challenging. The following is how I test this very
 
 [reference]
 OS three easy pieces (http://pages.cs.wisc.edu/~remzi/OSTEP/file-implementation.pdf)
-RPC programming guide
+RPC programming guide (https://docs.freebsd.org/44doc/psd/22.rpcgen/paper.pdf)
