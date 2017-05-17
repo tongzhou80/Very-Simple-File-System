@@ -1,8 +1,0 @@
-
-all: vsfs vsfs_rpc
-
-vsfs:
-	g++ vsfs.cpp -o sh
-
-vsfs_rpc:
-	g++ vsfs_rpc.cpp -o fs_rpc
