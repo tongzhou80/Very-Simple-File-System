@@ -1,0 +1,170 @@
+This an implementation of the very simple file system proposed in "OS three easy pieces". The original chapter(design) can be found at the end of this documentation.
+
+[usage]
+VS file system assumes you have a file called "vdisk" in the same directory. The file acts as the
+virtual the file system operates on. The size of "vdisk" should be 100M. The maximum file size is 4M.
+The maximum file number is 24320.
+
+File descriptor is represented by an unsigned integer, which starts from 0. The new file descritor
+will simply increment. So when a file is close, its file descriptor won't be reused.
+
+[build]
+$ make
+$ cd build/; ./sh
+
+[functionality]
+supported commands:
+mkfs: mkfs
+  - Make a new file system, i.e., format the disk so that it is ready for other file system operations.
+open: open <filename> <flag>
+  - Open a file with the given <flag>, return a file descriptor <fd> associated with this file. Example:
+    open foo w shell returns SUCCESS, fd=5
+read: read <fd> <size>
+  - Read <size> bytes from the file associated with <fd>, from current file offset. The current file offset
+    will move forward <size> bytes after read. Example: read 5 10
+write: write <fd> <string>
+  - Write <string> into file associated with <fd>, from current file offset. The current file offset will
+    move forward the size of the string after write. Here <string> can be in double quote or not. If the
+    end of the file is reached, the size of the file will be increased. Example: write 5 "hello, world"
+seek: seek <fd> <offset>
+  - Move the current file offset associated with <fd> to a new file offset at <offset>. The <offset> means
+    the number of bytes from the beginning of the file. Example: seek 5 10
+close: close <fd>
+  - Close the file associated with <fd>. Example: close 5
+mkdir: mkdir <dirname>
+  - Create a sub-directory <dirname> under the current directory. Example: mkdir foo
+rmdir: rmdir <dirname>
+  - Remove the sub-directory <dirname>. This directory has to be empty when it is removed. Example: rmdir foo
+cd: cd <dirname>
+  - Change the current directory to <dirname>. Example: cd ../../foo/bar
+ls: ls
+  - Show the content of the current directory. No parameters need to be supported.
+cat: cat <filename>
+  - Show the content of the file. Example: cat foo
+tree: tree
+  - List the contents of the current directory in a tree-format.
+import: import <srcname> <destname>
+  - Import a file from the host machine file system to the current directory. Example: import /d/foo foo
+export: export <srcname> <destname>
+  - Export a file from the current directory to the host machine file system. Example: export foo /d/foo
+
+Also support running a binary executable in the shell. Example: ./hello 
+
+[development enviroment]
+Red Hat Enterprise Linux Server release 7.2 (Maipo)
+
+[organization]
++-------+--------------+-------------+-----------------+----------------+
+| super | inode bitmap | data bitmap |      inode      |      data      |
++-------+--------------+-------------+-----------------+----------------+
+0k      256k           512k          1M                5M               100M
+
+inode size: 256k
+data block size: 4k
+
+- Max capacity calculation
+max inode number: 4M/256 = 16384
+max 4k block number: 95M/4k = 24320
+
+Considering most files are less than 4k, max file number should be slightly less than 4k block number.
+
+[bitmap]
+VS file system uses bitmap to keep track free inode and 4k block.
+
+[inode]
+Following properties are currently supported:
++------------+
+| type       |
++------------+
+| size       |
++------------+
+| capacity   |
++------------+
+| date       |
++------------+
+| L0 address |
++------------+
+| L1 address |
++------------+
+
+- Regular file has type 0. Directory has type 1.
+
+- Capacity means how many 4k block has been used. When writing into file, if file offset is greater
+  than capacity, a new 4k block will be allocated.
+
+- Date is represented by a fixed length char array. The length is 25. An example of date format is
+  Sun Feb 28 19:37:28 2016.
+
+- L0 address is direct address. Considering most files are less than 4k, only one direct address is used.
+
+- L1 address is indirect address. It points a 4k block. If an address has size of 4 bytes, a 4k block
+  supports 1k addresses, which means 4M max file size.
+
+A L2 address is under development which supports two level indirect address and a max file size of 4G.
+
+[block assignment]
+When a new file/directory is created, a new inode id and a new 4k block will be assigned to it. Inode id
+starts from 0;
+
+[address mapping]
+A file should be continuous in user's level, but in disk they have to be made up of scattered 4k block.
+Address mapping should be implemented to provide service for file reading and writing. In other words,
+given a file offset, the offset should be mapped to a physical address on disk. This is implemented in
+calcDiskAddress() and is my favorite part of the program. 
+
+[current working dir]
+The program maintain a cwd pointer, which also points to the inode if of current working directory.
+When making new file in another directory, cwd points that directory first and after new file is created
+cwd will be resumed to what it was.
+
+[file descriptor]
+File descriptor starts from 0. No reserved number for stdin, stdout and stderr. Everytime when a file is
+opened, file descriptor increments and assign to the opened file. The program maintains a map, which maps
+a file descriptor to its inode id and its file offset. When the file is closed, the entry in the map will
+ne removed.
+
+[directory entry]
+Every file in a directory is a directory entry. The table below describes its representation.
++----------+----------+-----------------+
+| inode id | name len | name char array |
++----------+----------+-----------------+
+When an entry is deleted. Its inode id is set to -1. So when iterating entries in a directory, the deleted
+entry will be skipped. When en entry is added to the directory, the file system will first find if there is
+any deleted area which has enough space to contain the new entry. If not, it will appended the new entry to
+the end of directory file.
+
+[initialization]
+When file system is created, all data on the disk will be removed. A new dir called root will be created
+automatically, which has inode id 0.
+
+[abstraction]
++-------------------------+
+| write(), read(), seek() |  --> application layer (file reading and writing)
++-------------------------+
+| writeData(), readData() |  --> mapping layer (writing continuous data chunk to incontinuous 4k block)
++-------------------------+
+| dread(), dwrite()       |  --> physical layer (abstraction of disk I/O)
++-------------------------+
+
+[rpc support]
+The project initially includes rpc support to some extent, which is now disabled.
++----------------------+         +------------+	      +------------+
+| backend file system  |  ---->  | rpc server |  -->  | rpc client |
+|                      |  <----  |     	      |  <--  |       |
++----------------------+   ipc   +------------+       +------------+
+rpc server forks a subprocess to run backend file system and pipe commands sent by client to file system.
+When the command is executed, result is returned to rpc server and then to rpc client.
+
+[test]
+Testing a file system is also challenging. The following is how I test this very simple file system.
+
+- address mapping test
+  Open a file, seek to 10000, write foo. Cat the file and see if you can see 10000 space and a foo in the
+  end.
+
+- import/export test
+  import a file and export it immediately. Diff the original file and the one exported from VS file system.
+
+[reference]
+OS three easy pieces (http://pages.cs.wisc.edu/~remzi/OSTEP/file-implementation.pdf)
+RPC programming guide (https://docs.freebsd.org/44doc/psd/22.rpcgen/paper.pdf)
